@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
-import { PublicOnly, RequireMember, RequireOnboarding } from './guards'
+import { PublicOnly, RequireMember, RequireModerator, RequireOnboarding } from './guards'
+import { ModerationPage } from '@/features/safety/ModerationPage'
 import { AppShell } from './AppShell'
 import { useAuth } from './auth'
 import { PageSpinner } from '@/components/ui'
@@ -69,6 +70,7 @@ export const router = createBrowserRouter([
           { path: '/profile/edit', element: <EditProfilePage /> },
           { path: '/u/:username', element: <ProfilePage /> },
           { path: '/settings', element: <SettingsPage /> },
+          { element: <RequireModerator />, children: [{ path: '/moderation', element: <ModerationPage /> }] },
         ],
       },
     ],

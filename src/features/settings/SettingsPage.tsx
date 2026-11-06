@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ChevronRight, FileText, LogOut, Moon, ShieldBan, Sun, SunMoon, Trash2 } from 'lucide-react'
+import { ArrowLeft, ChevronRight, FileText, LogOut, Moon, Shield, ShieldBan, Sun, SunMoon, Trash2 } from 'lucide-react'
 import { Button, Card, Input, Modal, useToast } from '@/components/ui'
 import { useAuth, useMe } from '@/app/auth'
 import { useTheme, type ThemePref } from '@/app/theme'
@@ -63,6 +63,7 @@ export function SettingsPage() {
       </Card>
 
       <Card className="divide-y divide-border">
+        {me.is_moderator && <Row to="/moderation" icon={Shield} label="Moderación" />}
         <Row to="/settings/blocked" icon={ShieldBan} label="Personas bloqueadas" />
         <Row to="/legal/privacy" icon={FileText} label="Política de privacidad" />
         <Row to="/legal/terms" icon={FileText} label="Condiciones de uso" />
