@@ -1,0 +1,115 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/plus-jakarta-sans';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens. Brand palette is fixed; semantic tokens switch with the theme.
+ * Components only use semantic tokens (bg-surface, text-muted, bg-primary…).
+ */
+:root {
+  --bg: #f5f8fc;            /* Ice White */
+  --surface: #ffffff;
+  --surface-muted: #eef3fa;
+  --border: #e1e8f2;
+  --text: #142238;          /* Midnight */
+  --text-muted: #5b6b82;
+  --primary: #1268d5;       /* Diabetes Blue */
+  --primary-hover: #0e57b5;
+  --primary-text: #1268d5;  /* blue used for links/labels on surfaces */
+  --primary-soft: #dcebff;  /* Soft Blue */
+  --primary-soft-text: #0e4fa3;
+  --electric: #4b91ed;
+  --mint: #8adcc3;
+  --mint-soft: #e3f7f0;
+  --mint-text: #1d6b54;
+  --danger: #c93b3b;
+  --danger-soft: #fdecec;
+  --ring: #4b91ed;
+  --shadow: 0 1px 2px rgb(20 34 56 / 0.04), 0 4px 16px rgb(20 34 56 / 0.06);
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #0b1424;
+  --surface: #132036;
+  --surface-muted: #1a2a44;
+  --border: #24354f;
+  --text: #eaf1fb;
+  --text-muted: #93a4be;
+  --primary: #1268d5;       /* white-on-blue keeps 5.3:1 contrast */
+  --primary-hover: #2a7ae0;
+  --primary-text: #6aa6f2;
+  --primary-soft: #16335a;
+  --primary-soft-text: #b8d5fb;
+  --mint-soft: #133c35;
+  --mint-text: #9fe6cf;
+  --danger: #f07575;
+  --danger-soft: #3a1c22;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.25);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-text: var(--primary-text);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-soft-text: var(--primary-soft-text);
+  --color-electric: var(--electric);
+  --color-mint: var(--mint);
+  --color-mint-soft: var(--mint-soft);
+  --color-mint-text: var(--mint-text);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-ring: var(--ring);
+  --color-midnight: #142238;
+
+  --radius-card: 1.25rem;
+  --shadow-card: var(--shadow);
+
+  --animate-fade-up: fade-up 220ms ease-out both;
+  --animate-pop: pop 160ms ease-out both;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-bg text-text font-sans antialiased;
+    min-height: 100dvh;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}

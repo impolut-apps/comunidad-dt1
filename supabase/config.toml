@@ -1,0 +1,13 @@
+# Minimal Supabase CLI config (for `supabase link`, `db push`, `functions deploy`).
+project_id = "comunidad-dt1"
+
+[auth]
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173/**"]
+minimum_password_length = 8
+
+[auth.email]
+enable_confirmations = true
+
+[functions.delete-account]
+verify_jwt = true

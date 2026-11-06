@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>%APP_NAME% · Encuentra a tu gente</title>
+    <meta name="description" content="%APP_DESCRIPTION%" />
+    <meta name="theme-color" content="#1268D5" />
+    <meta property="og:title" content="%APP_NAME% · Encuentra a tu gente" />
+    <meta property="og:description" content="%APP_DESCRIPTION%" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <script>
+      // Apply the saved theme before first paint to avoid a flash.
+      try {
+        var t = localStorage.getItem('theme')
+        if (t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches))
+          document.documentElement.classList.add('dark')
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>Necesitas activar JavaScript para usar esta aplicación.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
