@@ -26,7 +26,7 @@ npm run dev                 # http://localhost:5173
 | `npm run dev` | Dev server |
 | `npm run build` | Typecheck + production build (`dist/`) |
 | `npm run typecheck` | TypeScript only |
-| `npm run test:db` | Runs all migrations in PGlite (in-process Postgres) and the RLS/security test suite (43 tests) |
+| `npm run test:db` | Runs all migrations in PGlite (in-process Postgres) and the RLS/security test suite (53 tests) |
 | `node scripts/make-icons.mjs` | Regenerates placeholder PWA icons |
 
 `npm run test:db` needs no Docker and no Supabase account. It uses a stub of Supabase's `auth` and `storage`
@@ -55,7 +55,13 @@ schemas (`supabase/tests/supabase-stub.sql`), so a final check on a real Supabas
    `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically.
 8. **Moderators**: in the SQL editor, `update public.profiles set is_moderator = true where username = '...';`
    (deliberately not possible from the app).
-9. Copy the project URL and **anon/publishable key** into `.env` / Vercel. **Never** use the service-role key in the frontend.
+9. **Topic groups** (Mensajes → Grupos) are curated by the team. Add or edit them in the SQL editor:
+   ```sql
+   insert into public.conversations (kind, title, description, emoji, sort_order)
+   values ('group', 'Padel Madrid', 'Para organizar partidos en Madrid.', '🎾', 110);
+   -- rename: update public.conversations set title = '...' where id = '...';
+   ```
+10. Copy the project URL and **anon/publishable key** into `.env` / Vercel. **Never** use the service-role key in the frontend.
 
 ## Deploy (Vercel)
 

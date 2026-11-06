@@ -1,7 +1,7 @@
-import { NavLink, Outlet, Link } from 'react-router-dom'
+import { NavLink, Outlet, Link, useLocation } from 'react-router-dom'
 import { Home, Compass, CalendarDays, MessageCircle, User, Settings, Shield } from 'lucide-react'
 import { Logo, Avatar, CountDot } from '@/components/ui'
-import { useInbox, useMessagesRealtime } from '@/features/messages/api'
+import { useGroups, useInbox, useMessagesRealtime } from '@/features/messages/api'
 import { cn } from '@/lib/cn'
 import { useMe } from './auth'
 
@@ -21,7 +21,11 @@ export function AppShell() {
   const me = useMe()
   useMessagesRealtime(me.id)
   const { data: inbox } = useInbox()
-  const unread = inbox?.reduce((n, c) => n + (c.other ? c.unread_count : 0), 0) ?? 0
+  const { data: groups } = useGroups()
+  const unread =
+    (inbox?.reduce((n, c) => n + (c.other ? c.unread_count : 0), 0) ?? 0) +
+    (groups?.reduce((n, g) => n + g.unread_count, 0) ?? 0)
+  const wide = useLocation().pathname.startsWith('/messages')
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[260px_1fr]">
       <aside className="sticky top-0 hidden h-dvh flex-col border-r border-border bg-surface px-4 py-6 lg:flex">
@@ -75,7 +79,12 @@ export function AppShell() {
         </div>
       </aside>
 
-      <main className="mx-auto w-full max-w-2xl px-4 pb-28 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-6 lg:pb-12 lg:pt-10">
+      <main
+        className={cn(
+          'mx-auto w-full px-4 pb-28 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-6 lg:pb-12 lg:pt-10',
+          wide ? 'max-w-5xl' : 'max-w-2xl', // messages use a two-pane layout on desktop
+        )}
+      >
         <Outlet />
       </main>
 

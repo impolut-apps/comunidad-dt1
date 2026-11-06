@@ -198,7 +198,7 @@ await test('cannot send a message as someone else', async () => {
 })
 await test('clients cannot create conversations directly', async () => {
   await rejects(as(C, 'insert into public.conversations (direct_key) values ($1)', ['x']), 'permission denied')
-  await rejects(as(C, 'insert into public.conversation_participants (conversation_id, user_id) values ($1, $2)', [conv, C]), 'permission denied')
+  await rejects(as(C, 'insert into public.conversation_participants (conversation_id, user_id) values ($1, $2)', [conv, C]), 'permission denied|row-level security')
 })
 await test('marking as read only touches own participant row', async () => {
   await as(B, `update public.conversation_participants set last_read_at=now() where conversation_id=$1`, [conv])
@@ -347,6 +347,71 @@ await test('avatars: members can read, non-members only their own', async () => 
   assert(m.length === 1, 'member cannot read')
   const u = await as(U, `select name from storage.objects where bucket_id='avatars'`)
   assert(u.length === 0, 'non-member can read')
+})
+
+console.log('\nGroup chats')
+let grp
+const sendTo = (id, convId, body) =>
+  as(id, `insert into public.messages (conversation_id, sender_id, body) values ($1, $2, $3)`, [convId, id, body])
+await test('members see the group directory; non-members see nothing', async () => {
+  const rows = await as(A, 'select * from public.list_groups()')
+  assert(rows.length === 10 && rows.every((r) => !r.joined && r.last_message_body === null), JSON.stringify(rows[0]))
+  grp = rows.find((r) => r.title === 'Charla general').id
+  const u = await as(U, 'select * from public.list_groups()')
+  assert(u.length === 0, 'non-member saw groups')
+  await rejects(as(U, 'insert into public.conversation_participants (conversation_id, user_id) values ($1, $2)', [grp, U]), 'row-level security')
+})
+await test('join a group yourself; cannot add others or join a private chat', async () => {
+  await as(A, 'insert into public.conversation_participants (conversation_id, user_id) values ($1, $2)', [grp, A])
+  await rejects(as(A, 'insert into public.conversation_participants (conversation_id, user_id) values ($1, $2)', [grp, M]), 'row-level security')
+  await rejects(as(M, 'insert into public.conversation_participants (conversation_id, user_id) values ($1, $2)', [conv, M]), 'row-level security')
+})
+await test('only people inside a group can read it (no previews outside)', async () => {
+  await sendTo(A, grp, 'Hola grupo')
+  const outside = await as(M, 'select * from public.messages where conversation_id = $1', [grp])
+  assert(outside.length === 0, 'outsider read group messages')
+  const [g] = await as(M, 'select * from public.list_groups() where id = $1', [grp])
+  assert(Number(g.member_count) === 1 && g.last_message_body === null && !g.joined, JSON.stringify(g))
+  await rejects(sendTo(M, grp, 'colado'), 'row-level security')
+})
+await test('after joining: read history, unread count, send', async () => {
+  await as(M, 'insert into public.conversation_participants (conversation_id, user_id) values ($1, $2)', [grp, M])
+  // joined_at/last_read_at default to now(), so backdate to count the earlier message as unread
+  await db.query(`update public.conversation_participants set last_read_at = now() - interval '1 hour' where conversation_id = $1 and user_id = $2`, [grp, M])
+  const msgs = await as(M, 'select body from public.messages where conversation_id = $1', [grp])
+  assert(msgs.length === 1, 'cannot read history')
+  const [g] = await as(M, 'select * from public.list_groups() where id = $1', [grp])
+  assert(g.joined && Number(g.unread_count) === 1 && g.last_message_body === 'Hola grupo', JSON.stringify(g))
+  await sendTo(M, grp, 'Bienvenidos')
+})
+await test('in a group, a block hides messages both ways but does not silence anyone', async () => {
+  // B blocked A earlier
+  await as(B, 'insert into public.conversation_participants (conversation_id, user_id) values ($1, $2)', [grp, B])
+  const bSees = await as(B, 'select body from public.messages where conversation_id = $1 order by created_at', [grp])
+  assert(bSees.map((m) => m.body).join() === 'Bienvenidos', JSON.stringify(bSees))
+  await sendTo(B, grp, 'Hola, soy Bea')
+  await sendTo(A, grp, 'Sigo pudiendo escribir')
+  const aSees = await as(A, 'select body from public.messages where conversation_id = $1', [grp])
+  assert(!aSees.some((m) => m.body === 'Hola, soy Bea'), 'blocked message visible')
+  const mSees = await as(M, 'select body from public.messages where conversation_id = $1', [grp])
+  assert(mSees.length === 4, `third party should see all 4, saw ${mSees.length}`)
+})
+await test('direct inbox ignores groups; private chats cannot be "left"', async () => {
+  const inbox = await as(M, 'select * from public.my_conversations()')
+  assert(!inbox.some((r) => r.conversation_id === grp), 'group in direct inbox')
+  await as(A, 'delete from public.conversation_participants where conversation_id = $1 and user_id = $2', [conv, A])
+  const still = await db.query('select 1 from public.conversation_participants where conversation_id = $1 and user_id = $2', [conv, A])
+  assert(still.rows.length === 1, 'left a direct chat')
+})
+await test('leaving a group removes access', async () => {
+  await as(A, 'delete from public.conversation_participants where conversation_id = $1 and user_id = $2', [grp, A])
+  const rows = await as(A, 'select * from public.messages where conversation_id = $1', [grp])
+  assert(rows.length === 0, 'still reads after leaving')
+  await rejects(sendTo(A, grp, 'sigo aquí?'), 'row-level security')
+})
+await test('clients cannot create or rename groups', async () => {
+  await rejects(as(M, `insert into public.conversations (kind, title) values ('group', 'Mi grupo')`), 'permission denied')
+  await rejects(as(M, `update public.conversations set title = 'hackeado' where id = $1`, [grp]), 'permission denied')
 })
 
 console.log('\nAccount deletion')

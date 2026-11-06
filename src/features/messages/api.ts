@@ -18,6 +18,52 @@ export interface Message {
   sender_id: string
   body: string
   created_at: string
+  /** Embedded for group chats; absent on messages that arrived via realtime. */
+  sender?: { display_name: string; username: string; avatar_path: string | null } | null
+}
+
+export interface GroupItem {
+  id: string
+  title: string
+  description: string | null
+  emoji: string | null
+  member_count: number
+  joined: boolean
+  last_message_at: string | null
+  last_message_body: string | null
+  last_sender_name: string | null
+  unread_count: number
+}
+
+export function useGroups(enabled = true) {
+  return useQuery({
+    queryKey: ['groups'],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('list_groups')
+      if (error) throw error
+      return (data as GroupItem[]).map((g) => ({ ...g, member_count: Number(g.member_count), unread_count: Number(g.unread_count) }))
+    },
+  })
+}
+
+export interface ConversationInfo {
+  id: string
+  kind: 'direct' | 'group'
+  title: string | null
+  description: string | null
+  emoji: string | null
+}
+
+export function useConversationInfo(id: string) {
+  return useQuery({
+    queryKey: ['conversation', id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('conversations').select('id, kind, title, description, emoji').eq('id', id).maybeSingle()
+      if (error) throw error
+      return data as ConversationInfo | null
+    },
+  })
 }
 
 /** Inbox with unread counts; the other person's profile is joined client-side (RLS hides blocked people). */
@@ -55,6 +101,7 @@ export function useMessagesRealtime(userId: string) {
           old && !old.some((x) => x.id === m.id) ? [...old, m] : old,
         )
         void qc.invalidateQueries({ queryKey: ['inbox'] })
+        void qc.invalidateQueries({ queryKey: ['groups'] })
       })
       .subscribe()
     return () => {
