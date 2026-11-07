@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { Flag, MessageSquare, MoreHorizontal, Trash2 } from 'lucide-react'
-import { Avatar, Button, Card, Modal, useToast } from '@/components/ui'
+import { Avatar, Button, Card, Modal, StoredImage, useToast } from '@/components/ui'
 import { useMe } from '@/app/auth'
 import { supabase } from '@/lib/supabase'
 import { friendlyError } from '@/lib/errors'
@@ -45,6 +45,8 @@ export function PostCard({ post, linkToDetail = true }: { post: Post; linkToDeta
     mutationFn: async () => {
       const { error } = await supabase.from('posts').delete().eq('id', post.id)
       if (error) throw error
+      // Best effort: remove the photo file too (the post row is already gone).
+      if (post.image_path) await supabase.storage.from('media').remove([post.image_path])
     },
     onSuccess: async () => {
       setConfirmDelete(false)
@@ -77,12 +79,22 @@ export function PostCard({ post, linkToDetail = true }: { post: Post; linkToDeta
         </button>
       </div>
 
-      {linkToDetail ? (
-        <Link to={`/posts/${post.id}`} className="mt-3 block whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-          {post.body}
-        </Link>
-      ) : (
-        <p className="mt-3 whitespace-pre-wrap break-words text-[15px] leading-relaxed">{post.body}</p>
+      {post.body.trim() &&
+        (linkToDetail ? (
+          <Link to={`/posts/${post.id}`} className="mt-3 block whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+            {post.body}
+          </Link>
+        ) : (
+          <p className="mt-3 whitespace-pre-wrap break-words text-[15px] leading-relaxed">{post.body}</p>
+        ))}
+      {post.image_path && (
+        <StoredImage
+          path={post.image_path}
+          meta={post.image_meta}
+          alt={post.body.trim() ? post.body.slice(0, 80) : `Foto de ${post.author?.display_name ?? 'un miembro'}`}
+          className="mt-3 rounded-2xl"
+          maxHeight={480}
+        />
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-1.5">

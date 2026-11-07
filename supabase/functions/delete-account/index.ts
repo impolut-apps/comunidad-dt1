@@ -25,9 +25,20 @@ Deno.serve(async (req) => {
 
   const admin = createClient(url, serviceKey, { auth: { persistSession: false } })
 
-  // Remove avatar files first (storage is not covered by the database cascade).
+  // Remove files first (storage is not covered by the database cascade).
   const { data: files } = await admin.storage.from('avatars').list(user.id)
   if (files?.length) await admin.storage.from('avatars').remove(files.map((f) => `${user.id}/${f.name}`))
+
+  // Post photos live under posts/<uid>/; chat photos and voice notes are referenced by the user's messages.
+  const { data: postFiles } = await admin.storage.from('media').list(`posts/${user.id}`, { limit: 1000 })
+  const { data: chatMedia } = await admin.from('messages').select('media_path').eq('sender_id', user.id).not('media_path', 'is', null)
+  const mediaPaths = [
+    ...(postFiles ?? []).map((f) => `posts/${user.id}/${f.name}`),
+    ...(chatMedia ?? []).map((m) => m.media_path as string),
+  ]
+  for (let i = 0; i < mediaPaths.length; i += 100) {
+    await admin.storage.from('media').remove(mediaPaths.slice(i, i + 100))
+  }
 
   // Deleting the auth user cascades to profile, posts, plans, messages, etc.
   const { error: delError } = await admin.auth.admin.deleteUser(user.id)

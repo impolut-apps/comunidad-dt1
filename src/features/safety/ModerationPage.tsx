@@ -2,11 +2,26 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, ExternalLink, EyeOff, Eye, ShieldCheck, Trash2, UserX } from 'lucide-react'
-import { Avatar, Badge, Button, Card, CardSkeleton, EmptyState, ErrorState, Modal, PageHeader, Textarea, useToast } from '@/components/ui'
+import {
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  CardSkeleton,
+  EmptyState,
+  ErrorState,
+  Modal,
+  PageHeader,
+  StoredImage,
+  Textarea,
+  VoiceNote,
+  useToast,
+} from '@/components/ui'
 import { supabase } from '@/lib/supabase'
 import { friendlyError } from '@/lib/errors'
 import { cn } from '@/lib/cn'
 import type { ReportTarget } from './safety'
+import { StatsPanel } from './StatsPanel'
 
 interface Report {
   id: string
@@ -26,6 +41,9 @@ interface Preview {
   author_id: string
   text: string
   status?: string
+  media_path?: string | null
+  media_bucket?: 'avatars' | 'media'
+  kind?: 'text' | 'image' | 'audio' | 'sticker'
 }
 
 type Action = 'dismiss' | 'hide' | 'restore' | 'suspend_user' | 'delete_activity'
@@ -50,9 +68,10 @@ const targetLabels: Record<ReportTarget, string> = {
 const dateFmt = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
 export function ModerationPage() {
-  const [view, setView] = useState<'open' | 'resolved'>('open')
+  const [view, setView] = useState<'open' | 'resolved' | 'stats'>('open')
   const reports = useQuery({
     queryKey: ['reports', view],
+    enabled: view !== 'stats',
     queryFn: async () => {
       const { data, error } = await supabase
         .from('reports')
@@ -77,12 +96,13 @@ export function ModerationPage() {
 
   return (
     <div>
-      <PageHeader title="Moderación" subtitle="Reportes de la comunidad" />
-      <div className="mb-4 grid grid-cols-2 gap-1 rounded-2xl bg-surface-muted p-1" role="tablist">
+      <PageHeader title="Moderación" subtitle="Reportes y estadísticas de la comunidad" />
+      <div className="mb-4 grid grid-cols-3 gap-1 rounded-2xl bg-surface-muted p-1" role="tablist">
         {(
           [
             ['open', 'Pendientes'],
             ['resolved', 'Resueltos'],
+            ['stats', 'Estadísticas'],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -101,7 +121,9 @@ export function ModerationPage() {
         ))}
       </div>
 
-      {reports.isPending ? (
+      {view === 'stats' ? (
+        <StatsPanel />
+      ) : reports.isPending ? (
         <div className="space-y-3">
           <CardSkeleton />
           <CardSkeleton />
@@ -226,6 +248,16 @@ function CaseCard({ reports, resolved }: { reports: Report[]; resolved: boolean 
         <p className="line-clamp-6 whitespace-pre-wrap break-words text-[15px]">
           {preview.isPending ? 'Cargando…' : (preview.data?.text ?? 'El contenido ya no existe.')}
         </p>
+        {preview.data?.media_path && preview.data.kind === 'audio' && (
+          <div className="mt-2 w-fit rounded-2xl bg-surface px-3 py-2">
+            <VoiceNote path={preview.data.media_path} />
+          </div>
+        )}
+        {preview.data?.media_path && preview.data.kind === 'image' && (
+          <div className="mt-2 w-48">
+            <StoredImage bucket={preview.data.media_bucket ?? 'media'} path={preview.data.media_path} alt="Imagen reportada" className="rounded-xl" maxHeight={240} />
+          </div>
+        )}
         {link && (
           <Link to={link} className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-primary-text">
             Ver en la app <ExternalLink size={14} />

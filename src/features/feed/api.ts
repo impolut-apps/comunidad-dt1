@@ -20,6 +20,8 @@ export interface Post {
   id: string
   author_id: string
   body: string
+  image_path: string | null
+  image_meta: { w: number; h: number } | null
   created_at: string
   author: Author | null
   reactions: Array<{ user_id: string; kind: ReactionKind }>

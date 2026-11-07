@@ -107,6 +107,24 @@
   }
 }
 
+/*
+ * Chat background: soft blue with a faint pattern of the brand's own motifs
+ * (people, hearts, sparkles) — our identity, not another messenger's.
+ */
+:root {
+  --chat-bg: #e8f0fa;
+  --chat-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120' fill='none' stroke='%231268D5' stroke-opacity='0.09' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='20' cy='18' r='5'/%3E%3Cpath d='M11 36c0-5 4-9 9-9s9 4 9 9'/%3E%3Cpath d='M86 22c-3-4-9-2-9 3 0 5 9 10 9 10s9-5 9-10c0-5-6-7-9-3z'/%3E%3Cpath d='M60 64v10M55 69h10'/%3E%3Ccircle cx='98' cy='86' r='4'/%3E%3Ccircle cx='108' cy='86' r='4'/%3E%3Cpath d='M90 100c0-4 3-7 8-7M116 100c0-4-3-7-8-7'/%3E%3Cpath d='M18 92l6 6 10-12'/%3E%3C/svg%3E");
+}
+.dark {
+  --chat-bg: #0d1829;
+  --chat-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120' fill='none' stroke='%234B91ED' stroke-opacity='0.08' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='20' cy='18' r='5'/%3E%3Cpath d='M11 36c0-5 4-9 9-9s9 4 9 9'/%3E%3Cpath d='M86 22c-3-4-9-2-9 3 0 5 9 10 9 10s9-5 9-10c0-5-6-7-9-3z'/%3E%3Cpath d='M60 64v10M55 69h10'/%3E%3Ccircle cx='98' cy='86' r='4'/%3E%3Ccircle cx='108' cy='86' r='4'/%3E%3Cpath d='M90 100c0-4 3-7 8-7M116 100c0-4-3-7-8-7'/%3E%3Cpath d='M18 92l6 6 10-12'/%3E%3C/svg%3E");
+}
+.chat-wallpaper {
+  background-color: var(--chat-bg);
+  background-image: var(--chat-pattern);
+  background-size: 120px 120px;
+}
+
 @utility pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
 }

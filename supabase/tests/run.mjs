@@ -414,6 +414,81 @@ await test('clients cannot create or rename groups', async () => {
   await rejects(as(M, `update public.conversations set title = 'hackeado' where id = $1`, [grp]), 'permission denied')
 })
 
+console.log('\nStatistics')
+await test('activity is recorded for members only and nobody can read it directly', async () => {
+  for (const u of [A, B, M, U]) await as(u, 'select public.touch_activity()')
+  await as(A, 'select public.touch_activity()') // second call within the hour is a no-op
+  const r = await db.query('select user_id from public.user_activity')
+  assert(r.rows.length === 3 && !r.rows.some((x) => x.user_id === U), JSON.stringify(r.rows))
+  await rejects(as(M, 'select * from public.user_activity'), 'permission denied')
+})
+await test('only moderators can read statistics', async () => {
+  await rejects(as(A, 'select public.admin_stats()'), 'not_allowed')
+  await rejects(as(null, 'select public.admin_stats()'), 'permission denied')
+})
+await test('statistics add up', async () => {
+  const [{ s }] = await as(M, 'select public.admin_stats() s')
+  const users = (await db.query('select count(*)::int n from auth.users')).rows[0].n
+  assert(Number(s.funnel.registered) === users, `registered ${s.funnel.registered} vs ${users}`)
+  assert(Number(s.funnel.suspended) === 1, 'suspended count')
+  assert(Number(s.active.d1) === 3, `active d1 ${s.active.d1}`)
+  assert(s.new_members_daily.length === 30, 'daily series not zero-filled to 30 days')
+  const madrid = s.top_cities.find((c) => c.city === 'Madrid')
+  assert(madrid && Number(madrid.count) === 2, JSON.stringify(s.top_cities)) // alex + bea (unverified/suspended excluded)
+  assert(s.groups.length === 10 && Number(s.content.messages_30d) > 0, 'groups/content missing')
+  assert(!JSON.stringify(s).includes('Primer día'), 'stats leaked content')
+})
+
+console.log('\nMedia (photos, voice notes, stickers)')
+const upload = (id, name) => as(id, `insert into storage.objects (bucket_id, name) values ('media', $1)`, [name])
+const listMedia = (id) => as(id, `select name from storage.objects where bucket_id = 'media' order by name`)
+const msg = (id, convId, fields) =>
+  as(id, `insert into public.messages (conversation_id, sender_id, kind, body, media_path) values ($1, $2, $3, $4, $5)`, [
+    convId, id, fields.kind, fields.body ?? null, fields.media_path ?? null,
+  ])
+await test('chat uploads: only into your own folder of a conversation you are in', async () => {
+  await upload(B, `chat/${grp}/${B}/photo.webp`)
+  await rejects(upload(B, `chat/${grp}/${M}/photo.webp`), 'row-level security')
+  await rejects(upload(A, `chat/${grp}/${A}/photo.webp`), 'row-level security') // A left the group
+  await rejects(upload(U, `chat/${grp}/${U}/photo.webp`), 'row-level security')
+  await rejects(upload(B, `chat/not-a-uuid/${B}/x.webp`), 'row-level security')
+})
+await test('post uploads: own folder only', async () => {
+  await upload(A, `posts/${A}/p.webp`)
+  await rejects(upload(A, `posts/${B}/p.webp`), 'row-level security')
+})
+await test('chat media readable by participants only; post media by members', async () => {
+  const a = (await listMedia(A)).map((r) => r.name)
+  assert(a.includes(`posts/${A}/p.webp`) && !a.some((n) => n.startsWith('chat/')), JSON.stringify(a))
+  const b = (await listMedia(B)).map((r) => r.name)
+  assert(b.includes(`chat/${grp}/${B}/photo.webp`), 'participant cannot read chat media')
+  const u = await listMedia(U)
+  assert(u.length === 0, 'non-member read media')
+})
+await test('moderators can read all media (to review reports)', async () => {
+  const [{ n }] = await as(M, `select count(*)::int n from storage.objects where bucket_id = 'media'`)
+  assert(n === 2, `moderator saw ${n}`)
+})
+await test('image, audio and sticker messages validate their content', async () => {
+  await msg(B, grp, { kind: 'image', media_path: `chat/${grp}/${B}/photo.webp`, body: 'Mi desayuno' })
+  await msg(B, grp, { kind: 'audio', media_path: `chat/${grp}/${B}/a.mp4` })
+  await msg(B, grp, { kind: 'sticker', body: 'juice' })
+  await rejects(msg(B, grp, { kind: 'image', media_path: `chat/${grp}/${M}/photo.webp` }), 'messages_media_own_folder')
+  await rejects(msg(B, grp, { kind: 'text', body: null }), 'messages_content')
+  await rejects(msg(B, grp, { kind: 'text', body: 'hola', media_path: `chat/${grp}/${B}/x.webp` }), 'messages_content')
+  await rejects(msg(B, grp, { kind: 'sticker', body: '<script>' }), 'messages_content')
+  await rejects(msg(B, grp, { kind: 'audio', media_path: `chat/${grp}/${B}/a.mp4`, body: 'x' }), 'messages_content')
+})
+await test('group list previews media messages', async () => {
+  const [g] = await as(M, 'select last_message_body from public.list_groups() where id = $1', [grp])
+  assert(g.last_message_body === '✨ Sticker', JSON.stringify(g))
+})
+await test('posts: photo-only allowed; empty posts and foreign photos rejected', async () => {
+  await as(A, `insert into public.posts (author_id, image_path) values ($1, $2)`, [A, `posts/${A}/p.webp`])
+  await rejects(as(A, `insert into public.posts (author_id, body) values ($1, '   ')`, [A]), 'posts_content')
+  await rejects(as(A, `insert into public.posts (author_id, image_path) values ($1, $2)`, [A, `posts/${B}/p.webp`]), 'posts_image_own_folder')
+})
+
 console.log('\nAccount deletion')
 await test('deleting an auth user cascades through all their data', async () => {
   await db.query('delete from auth.users where id=$1', [A])

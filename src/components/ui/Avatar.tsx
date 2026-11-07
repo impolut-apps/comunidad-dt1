@@ -1,35 +1,8 @@
-import { useEffect, useState } from 'react'
 import { cn } from '@/lib/cn'
-import { supabase } from '@/lib/supabase'
+import { useSignedUrl } from '@/lib/media'
 
-// Avatars are in a private bucket. Signed URLs are cached in memory for their lifetime.
-const cache = new Map<string, { url: string; expires: number }>()
-const TTL = 60 * 60 // seconds
-
-async function signedUrl(path: string) {
-  const hit = cache.get(path)
-  if (hit && hit.expires > Date.now()) return hit.url
-  const { data } = await supabase.storage.from('avatars').createSignedUrl(path, TTL)
-  if (!data?.signedUrl) return null
-  cache.set(path, { url: data.signedUrl, expires: Date.now() + (TTL - 60) * 1000 })
-  return data.signedUrl
-}
-
-export function useAvatarUrl(path?: string | null) {
-  const [url, setUrl] = useState<string | null>(() => (path ? (cache.get(path)?.url ?? null) : null))
-  useEffect(() => {
-    let alive = true
-    if (!path) {
-      setUrl(null)
-      return
-    }
-    signedUrl(path).then((u) => alive && setUrl(u))
-    return () => {
-      alive = false
-    }
-  }, [path])
-  return url
-}
+/** Avatars are in a private bucket; see useSignedUrl. */
+export const useAvatarUrl = (path?: string | null) => useSignedUrl('avatars', path)
 
 // Deterministic, friendly background per person (blue family + mint).
 const palettes = [

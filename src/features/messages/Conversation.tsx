@@ -1,7 +1,7 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Flag, LogOut, MoreVertical, SendHorizontal } from 'lucide-react'
+import { ArrowLeft, Flag, LogOut, Mic, MoreVertical } from 'lucide-react'
 import { Avatar, Button, EmptyState, ErrorState, Modal, Spinner, useToast } from '@/components/ui'
 import { useMe } from '@/app/auth'
 import { supabase } from '@/lib/supabase'
@@ -10,10 +10,10 @@ import { cn } from '@/lib/cn'
 import { ReportDialog } from '@/features/safety/safety'
 import { clock, dayLabel, useConversationInfo, useGroups, useInbox, type Message } from './api'
 import { GroupIcon, useJoinGroup } from './groups'
+import { ChatComposer, messageSelect } from './ChatComposer'
+import { MessageBody, type Receipt } from './MessageBody'
 
 const PAGE = 100
-const messageSelect =
-  'id, conversation_id, sender_id, body, created_at, sender:profiles!messages_sender_id_fkey(display_name, username, avatar_path)'
 
 export function Conversation({ conversationId }: { conversationId: string }) {
   const me = useMe()
@@ -29,8 +29,6 @@ export function Conversation({ conversationId }: { conversationId: string }) {
   const joined = !isGroup || Boolean(group?.joined)
   const join = useJoinGroup(conversationId)
 
-  const [draft, setDraft] = useState('')
-  const [sending, setSending] = useState(false)
   const [reportId, setReportId] = useState<string | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [menu, setMenu] = useState(false)
@@ -75,6 +73,38 @@ export function Conversation({ conversationId }: { conversationId: string }) {
     bottomRef.current?.scrollIntoView({ block: 'end' })
   }, [lastId])
 
+  // Read receipts (1:1 chats): the other person's last_read_at, kept live via realtime.
+  const others = useQuery({
+    queryKey: ['participants', conversationId],
+    enabled: info.isSuccess && !isGroup,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('conversation_participants')
+        .select('user_id, last_read_at')
+        .eq('conversation_id', conversationId)
+        .neq('user_id', me.id)
+      if (error) throw error
+      return data as Array<{ user_id: string; last_read_at: string }>
+    },
+  })
+  useEffect(() => {
+    if (!info.isSuccess || isGroup) return
+    const channel = supabase
+      .channel(`reads-${conversationId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'conversation_participants', filter: `conversation_id=eq.${conversationId}` },
+        () => void qc.invalidateQueries({ queryKey: ['participants', conversationId] }),
+      )
+      .subscribe()
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [conversationId, info.isSuccess, isGroup, qc])
+  const otherReadAt = others.data?.[0]?.last_read_at
+  const receiptFor = (m: Message): Receipt =>
+    m.sender_id !== me.id ? null : !isGroup && otherReadAt && otherReadAt >= m.created_at ? 'read' : 'sent'
+
   const leave = useMutation({
     mutationFn: async () => {
       const { error } = await supabase
@@ -94,30 +124,9 @@ export function Conversation({ conversationId }: { conversationId: string }) {
     onError: (e) => toast(friendlyError(e), 'error'),
   })
 
-  async function send(e?: FormEvent) {
-    e?.preventDefault()
-    const body = draft.trim()
-    if (!body || sending) return
-    setSending(true)
-    const { data, error } = await supabase
-      .from('messages')
-      .insert({ conversation_id: conversationId, sender_id: me.id, body })
-      .select(messageSelect)
-      .single()
-    setSending(false)
-    if (error) return toast(friendlyError(error), 'error')
-    setDraft('')
-    qc.setQueryData<Message[]>(['messages', conversationId], (old = []) =>
-      old.some((m) => m.id === (data as unknown as Message).id) ? old : [...old, data as unknown as Message],
-    )
+  function onSent(m: Message) {
+    qc.setQueryData<Message[]>(['messages', conversationId], (old = []) => (old.some((x) => x.id === m.id) ? old : [...old, m]))
     void qc.invalidateQueries({ queryKey: [isGroup ? 'groups' : 'inbox'] })
-  }
-
-  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-      e.preventDefault()
-      void send()
-    }
   }
 
   const unavailable = info.isSuccess && (!info.data || (!isGroup && inbox.isSuccess && !other))
@@ -131,10 +140,10 @@ export function Conversation({ conversationId }: { conversationId: string }) {
   return (
     <section
       // Mobile: full-screen over the bottom nav, like a native chat. Desktop: right-hand pane.
-      className="fixed inset-0 z-50 flex flex-col bg-bg pt-[env(safe-area-inset-top)] lg:static lg:z-auto lg:h-full lg:rounded-card lg:border lg:border-border lg:bg-surface lg:pt-0"
+      className="chat-wallpaper fixed inset-0 z-50 flex flex-col pt-[env(safe-area-inset-top)] lg:static lg:z-auto lg:h-full lg:overflow-hidden lg:rounded-card lg:border lg:border-border lg:pt-0"
       aria-label="Conversación"
     >
-      <header className="flex items-center gap-3 border-b border-border px-4 py-3">
+      <header className="flex items-center gap-3 border-b border-border bg-surface px-3 py-2.5">
         <button onClick={() => navigate(backTo)} className="-ml-2 rounded-full p-2 text-muted hover:bg-surface-muted lg:hidden" aria-label="Volver">
           <ArrowLeft size={22} />
         </button>
@@ -166,7 +175,7 @@ export function Conversation({ conversationId }: { conversationId: string }) {
         )}
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 overflow-y-auto px-3 py-3 sm:px-5">
         {isGroup && info.data?.description && (
           <p className="mx-auto mb-4 max-w-md rounded-2xl bg-primary-soft/60 px-4 py-3 text-center text-sm text-primary-soft-text">
             {info.data.description}
@@ -192,21 +201,28 @@ export function Conversation({ conversationId }: { conversationId: string }) {
             <p className="mt-2">{isGroup ? 'Rompe el hielo: preséntate al grupo.' : 'Empieza la conversación. Seguro que tenéis mucho en común.'}</p>
           </div>
         ) : (
-          <ol className="space-y-1.5">
+          <ol className="space-y-1">
             {list.map((m, i) => {
               const mine = m.sender_id === me.id
               const prev = list[i - 1]
               const newDay = !prev || new Date(prev.created_at).toDateString() !== new Date(m.created_at).toDateString()
-              const grouped = prev && prev.sender_id === m.sender_id && !newDay
-              const showName = isGroup && !mine && !grouped
+              const grouped = Boolean(prev && prev.sender_id === m.sender_id && !newDay)
+              const showName = isGroup && !mine && !grouped && m.kind !== 'sticker'
+              const voiceAvatar =
+                m.kind === 'audio' && !mine ? (
+                  <span className="relative shrink-0">
+                    <Avatar path={(isGroup ? m.sender : other)?.avatar_path} name={(isGroup ? m.sender : other)?.display_name} size="md" />
+                    <Mic size={16} className="absolute -bottom-0.5 -left-1 text-primary-text drop-shadow" aria-hidden />
+                  </span>
+                ) : undefined
               return (
                 <Fragment key={m.id}>
                   {newDay && (
-                    <li className="py-3 text-center text-xs font-semibold capitalize text-muted" aria-hidden>
-                      {dayLabel(m.created_at)}
+                    <li className="flex justify-center py-2" aria-hidden>
+                      <span className="rounded-lg bg-surface px-3 py-1 text-xs font-semibold capitalize text-muted shadow-sm">{dayLabel(m.created_at)}</span>
                     </li>
                   )}
-                  <li className={cn('flex gap-2', mine ? 'justify-end' : 'justify-start', !grouped && 'pt-1.5')}>
+                  <li className={cn('flex gap-1.5', mine ? 'justify-end pr-2' : 'justify-start pl-2', !grouped && 'pt-2')}>
                     {isGroup && !mine && (
                       <span className="w-8 shrink-0">
                         {!grouped && m.sender && (
@@ -216,21 +232,17 @@ export function Conversation({ conversationId }: { conversationId: string }) {
                         )}
                       </span>
                     )}
-                    <div className={cn('flex max-w-[80%] flex-col', mine ? 'items-end' : 'items-start')}>
+                    <div className={cn('flex max-w-[82%] flex-col', mine ? 'items-end' : 'items-start')}>
                       {showName && <span className="mb-0.5 px-2 text-xs font-bold text-primary-text">{m.sender?.display_name ?? '…'}</span>}
-                      <button
-                        type="button"
-                        onClick={() => !mine && setSelected(selected === m.id ? null : m.id)}
-                        className={cn(
-                          'whitespace-pre-wrap break-words rounded-3xl px-4 py-2.5 text-left text-[15px] leading-relaxed',
-                          mine ? 'rounded-br-lg bg-primary text-white' : 'cursor-default rounded-bl-lg border border-border bg-surface text-text',
-                        )}
-                      >
-                        {m.body}
-                        <span className={cn('ml-2 inline-block translate-y-0.5 text-[11px]', mine ? 'text-white/70' : 'text-muted')}>
-                          {clock(m.created_at)}
-                        </span>
-                      </button>
+                      <MessageBody
+                        message={m}
+                        mine={mine}
+                        time={clock(m.created_at)}
+                        tail={!grouped && m.kind !== 'sticker'}
+                        receipt={receiptFor(m)}
+                        avatar={voiceAvatar}
+                        onToggleMenu={() => !mine && setSelected(selected === m.id ? null : m.id)}
+                      />
                       {selected === m.id && (
                         <button
                           onClick={() => {
@@ -252,31 +264,7 @@ export function Conversation({ conversationId }: { conversationId: string }) {
         <div ref={bottomRef} />
       </div>
 
-      {joined && (
-        <form
-          onSubmit={send}
-          className="flex items-end gap-2 border-t border-border bg-surface px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:rounded-b-card"
-        >
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={onKeyDown}
-            rows={1}
-            maxLength={2000}
-            placeholder={isGroup ? 'Escribe al grupo…' : 'Escribe un mensaje…'}
-            aria-label="Mensaje"
-            className="max-h-32 min-h-11 flex-1 resize-none rounded-3xl border border-border bg-bg px-4 py-2.5 text-[15px] focus:border-electric focus:outline-none focus:ring-4 focus:ring-electric/15"
-          />
-          <button
-            type="submit"
-            disabled={!draft.trim() || sending}
-            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-white transition active:scale-95 disabled:opacity-40"
-            aria-label="Enviar"
-          >
-            {sending ? <Spinner size={18} /> : <SendHorizontal size={20} />}
-          </button>
-        </form>
-      )}
+      {joined && info.isSuccess && <ChatComposer conversationId={conversationId} isGroup={isGroup} onSent={onSent} />}
 
       <Modal open={menu} onClose={() => setMenu(false)} title={info.data?.title ?? 'Grupo'}>
         <Button variant="danger" block className="justify-start" icon={<LogOut size={18} />} loading={leave.isPending} onClick={() => leave.mutate()}>

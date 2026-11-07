@@ -16,7 +16,10 @@ export interface Message {
   id: string
   conversation_id: string
   sender_id: string
-  body: string
+  kind: 'text' | 'image' | 'audio' | 'sticker'
+  body: string | null
+  media_path: string | null
+  media_meta: { w?: number; h?: number; seconds?: number } | null
   created_at: string
   /** Embedded for group chats; absent on messages that arrived via realtime. */
   sender?: { display_name: string; username: string; avatar_path: string | null } | null

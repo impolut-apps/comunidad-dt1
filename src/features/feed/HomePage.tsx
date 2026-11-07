@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { ChevronRight, Sparkles } from 'lucide-react'
+import { Camera, ChevronRight, Image as ImageIcon, Sparkles, X } from 'lucide-react'
+import { cn } from '@/lib/cn'
+import { compressImage, MAX_PHOTO_INPUT_BYTES, newFileId, uploadMedia } from '@/lib/media'
 import { Avatar, Button, Card, CardSkeleton, EmptyState, ErrorState, PageHeader, useToast } from '@/components/ui'
 import { useMe } from '@/app/auth'
 import { supabase } from '@/lib/supabase'
@@ -79,19 +81,51 @@ function Composer({ intro }: { intro: boolean }) {
   const [body, setBody] = useState('')
   const [focused, setFocused] = useState(false)
   const [sending, setSending] = useState(false)
-  const expanded = focused || body.length > 0
+  const [photo, setPhoto] = useState<{ file: File; url: string } | null>(null)
+  const cameraInput = useRef<HTMLInputElement>(null)
+  const galleryInput = useRef<HTMLInputElement>(null)
+  const expanded = focused || body.length > 0 || photo !== null
+
+  useEffect(() => () => void (photo && URL.revokeObjectURL(photo.url)), [photo])
+
+  function pickPhoto(file?: File) {
+    if (!file) return
+    if (!file.type.startsWith('image/')) return toast('Ese archivo no es una imagen', 'error')
+    if (file.size > MAX_PHOTO_INPUT_BYTES) return toast('La foto es demasiado grande', 'error')
+    setPhoto({ file, url: URL.createObjectURL(file) })
+  }
+
+  function reset() {
+    setBody('')
+    setPhoto(null)
+    setFocused(false)
+  }
 
   async function publish() {
     const text = body.trim()
-    if (!text) return
+    if (!text && !photo) return
     setSending(true)
-    const { error } = await supabase.from('posts').insert({ author_id: me.id, body: text })
-    setSending(false)
-    if (error) return toast(friendlyError(error), 'error')
-    setBody('')
-    setFocused(false)
-    await invalidate()
-    toast('Publicado')
+    try {
+      let image_path: string | null = null
+      let image_meta = null
+      if (photo) {
+        const { blob, meta } = await compressImage(photo.file)
+        image_path = await uploadMedia(`posts/${me.id}/${newFileId()}.webp`, blob, 'image/webp')
+        image_meta = meta
+      }
+      const { error } = await supabase.from('posts').insert({ author_id: me.id, body: text, image_path, image_meta })
+      if (error) {
+        if (image_path) await supabase.storage.from('media').remove([image_path])
+        throw error
+      }
+      reset()
+      await invalidate()
+      toast('Publicado')
+    } catch (e) {
+      toast(friendlyError(e), 'error')
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -109,28 +143,51 @@ function Composer({ intro }: { intro: boolean }) {
             aria-label="Nueva publicación"
             className="w-full resize-none bg-transparent py-2 text-[15px] leading-relaxed placeholder:text-muted focus:outline-none"
           />
-          {expanded && (
-            <div className="mt-2 flex items-center justify-between gap-3 border-t border-border pt-3">
-              <span className="text-xs text-muted">
-                Recuerda: aquí no damos consejo médico. {body.length > MAX - 200 && `${body.length}/${MAX}`}
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setBody('')
-                    setFocused(false)
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button size="sm" loading={sending} disabled={!body.trim()} onClick={publish}>
-                  Publicar
-                </Button>
-              </div>
+          {photo && (
+            <div className="relative mt-2 overflow-hidden rounded-2xl bg-surface-muted">
+              <img src={photo.url} alt="Foto que vas a publicar" className="max-h-80 w-full object-contain" />
+              <button
+                onClick={() => setPhoto(null)}
+                className="absolute right-2 top-2 rounded-full bg-midnight/70 p-1.5 text-white"
+                aria-label="Quitar foto"
+              >
+                <X size={16} />
+              </button>
             </div>
           )}
+          <div className={cn('flex items-center gap-1', expanded ? 'mt-2 border-t border-border pt-3' : 'mt-1')}>
+            <button
+              onClick={() => cameraInput.current?.click()}
+              className="rounded-full p-2 text-primary-text hover:bg-primary-soft"
+              aria-label="Hacer una foto"
+            >
+              <Camera size={20} />
+            </button>
+            <button
+              onClick={() => galleryInput.current?.click()}
+              className="rounded-full p-2 text-primary-text hover:bg-primary-soft"
+              aria-label="Elegir foto de la galería"
+            >
+              <ImageIcon size={20} />
+            </button>
+            {expanded && (
+              <>
+                <span className="ml-1 hidden flex-1 text-xs text-muted sm:block">
+                  Aquí no damos consejo médico. {body.length > MAX - 200 && `${body.length}/${MAX}`}
+                </span>
+                <div className="ml-auto flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={reset} disabled={sending}>
+                    Cancelar
+                  </Button>
+                  <Button size="sm" loading={sending} disabled={!body.trim() && !photo} onClick={publish}>
+                    Publicar
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+          <input ref={cameraInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => (pickPhoto(e.target.files?.[0]), (e.target.value = ''))} />
+          <input ref={galleryInput} type="file" accept="image/*" className="hidden" onChange={(e) => (pickPhoto(e.target.files?.[0]), (e.target.value = ''))} />
         </div>
       </div>
     </Card>

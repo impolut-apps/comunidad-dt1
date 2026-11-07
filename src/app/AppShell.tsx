@@ -3,6 +3,8 @@ import { Home, Compass, CalendarDays, MessageCircle, User, Settings, Shield } fr
 import { Logo, Avatar, CountDot } from '@/components/ui'
 import { useGroups, useInbox, useMessagesRealtime } from '@/features/messages/api'
 import { cn } from '@/lib/cn'
+import { supabase } from '@/lib/supabase'
+import { useEffect } from 'react'
 import { useMe } from './auth'
 
 const nav = [
@@ -20,6 +22,11 @@ const nav = [
 export function AppShell() {
   const me = useMe()
   useMessagesRealtime(me.id)
+  // Aggregate "active members" metric; the server stores at most one timestamp per hour.
+  useEffect(() => {
+    // Postgrest builders are lazy: the request is only sent once .then() is called.
+    supabase.rpc('touch_activity').then(() => undefined)
+  }, [me.id])
   const { data: inbox } = useInbox()
   const { data: groups } = useGroups()
   const unread =
