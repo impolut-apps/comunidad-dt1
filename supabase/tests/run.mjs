@@ -489,6 +489,50 @@ await test('posts: photo-only allowed; empty posts and foreign photos rejected',
   await rejects(as(A, `insert into public.posts (author_id, image_path) values ($1, $2)`, [A, `posts/${B}/p.webp`]), 'posts_image_own_folder')
 })
 
+console.log('\nLaunch hardening')
+await test('you can delete your own messages, not anyone else\'s', async () => {
+  const [{ id }] = await as(B, `insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'me equivoqué') returning id`, [grp, B])
+  await rejects(as(M, 'select public.delete_my_message($1)', [id]), 'not_allowed')
+  await as(B, 'select public.delete_my_message($1)', [id])
+  const [row] = (await db.query('select body, deleted_at from public.messages where id = $1', [id])).rows
+  assert(row.body === null && row.deleted_at, 'not deleted')
+  const [g] = await as(M, 'select last_message_body from public.list_groups() where id = $1', [grp])
+  assert(g.last_message_body === '🚫 Mensaje eliminado', JSON.stringify(g))
+})
+await test('deleting a reported message keeps a copy for moderators only', async () => {
+  const [{ id }] = await as(B, `insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'insulto') returning id`, [grp, B])
+  await as(M, `insert into public.reports (reporter_id, target_type, target_id, reason) values ($1, 'message', $2, 'harassment')`, [M, id])
+  const kept = await as(B, 'select public.delete_my_message($1) p', [id])
+  assert(kept[0].p === null, 'media path returned for a reported message')
+  await rejects(as(B, 'select * from public.deleted_message_archive'), 'permission denied')
+  const rep = (await db.query(`select id from public.reports where target_id = $1`, [id])).rows[0].id
+  const [{ p }] = await as(M, 'select public.report_target_preview($1) p', [rep])
+  assert(p.text.includes('insulto') && p.text.includes('Borrado por su autor'), JSON.stringify(p))
+})
+await test('messages are rate limited', async () => {
+  await rejects(
+    (async () => {
+      for (let i = 0; i < 35; i++) await as(M, `insert into public.messages (conversation_id, sender_id, body) values ($1, $2, $3)`, [grp, M, `spam ${i}`])
+    })(),
+    'rate_limited',
+  )
+})
+await test('plan capacity cannot drop below attendees', async () => {
+  const [{ id }] = await as(M, `insert into public.activities (organizer_id, title, starts_at, country, city, max_participants)
+    values ($1, 'Ruta', now() + interval '2 days', 'ES', 'Sevilla', 5) returning id`, [M])
+  await as(B, 'insert into public.activity_participants (activity_id, user_id) values ($1, $2)', [id, B])
+  await rejects(as(M, 'update public.activities set max_participants = 1 where id = $1', [id]), 'activity_capacity_below_attendees')
+  await as(M, `update public.activities set max_participants = 2, title = 'Ruta corta' where id = $1`, [id])
+})
+await test('only moderators can pin posts', async () => {
+  const [{ id }] = await as(B, `insert into public.posts (author_id, body) values ($1, 'Anuncio') returning id`, [B])
+  await rejects(as(B, 'select public.set_post_pinned($1, true)', [id]), 'not_allowed')
+  await rejects(as(B, 'update public.posts set pinned_at = now() where id = $1', [id]), 'permission denied')
+  await as(M, 'select public.set_post_pinned($1, true)', [id])
+  const [row] = (await db.query('select pinned_at from public.posts where id = $1', [id])).rows
+  assert(row.pinned_at, 'not pinned')
+})
+
 console.log('\nAccount deletion')
 await test('deleting an auth user cascades through all their data', async () => {
   await db.query('delete from auth.users where id=$1', [A])

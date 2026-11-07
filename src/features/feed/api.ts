@@ -22,6 +22,7 @@ export interface Post {
   body: string
   image_path: string | null
   image_meta: { w: number; h: number } | null
+  pinned_at: string | null
   created_at: string
   author: Author | null
   reactions: Array<{ user_id: string; kind: ReactionKind }>

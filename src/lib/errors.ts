@@ -17,6 +17,8 @@ const messages: Record<string, string> = {
   profiles_username_key: 'Ese nombre de usuario ya está cogido.',
   reports_one_per_target: 'Ya habías reportado esto. Lo estamos revisando.',
   'policy for table "messages"': 'No puedes enviar mensajes en esta conversación.',
+  rate_limited: 'Vas muy rápido. Espera un momento y vuelve a intentarlo.',
+  activity_capacity_below_attendees: 'Ya hay más personas apuntadas que ese máximo.',
 }
 
 export function friendlyError(error: unknown): string {

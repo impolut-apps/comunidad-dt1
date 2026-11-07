@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CalendarX, Clock, Flag, MapPin, MessageCircle, Users } from 'lucide-react'
+import { ArrowLeft, CalendarX, Clock, Flag, MapPin, MessageCircle, Pencil, Users } from 'lucide-react'
 import { Avatar, Badge, Button, Card, CardSkeleton, EmptyState, ErrorState, Modal, useToast } from '@/components/ui'
 import { useMe } from '@/app/auth'
 import { supabase } from '@/lib/supabase'
@@ -161,9 +161,14 @@ export function PlanDetailPage() {
             {isOrganizer ? (
               !cancelled &&
               !past && (
-                <Button variant="danger" block onClick={() => setCancelOpen(true)}>
-                  Cancelar plan
-                </Button>
+                <>
+                  <Button block icon={<Pencil size={17} />} onClick={() => navigate(`/plans/${a.id}/edit`)}>
+                    Editar plan
+                  </Button>
+                  <Button variant="danger" onClick={() => setCancelOpen(true)}>
+                    Cancelar
+                  </Button>
+                </>
               )
             ) : going ? (
               <>

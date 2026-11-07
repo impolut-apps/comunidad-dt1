@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Flag, LogOut, Mic, MoreVertical } from 'lucide-react'
+import { ArrowLeft, Flag, LogOut, Mic, MoreVertical, Trash2 } from 'lucide-react'
 import { Avatar, Button, EmptyState, ErrorState, Modal, Spinner, useToast } from '@/components/ui'
 import { useMe } from '@/app/auth'
 import { supabase } from '@/lib/supabase'
@@ -124,6 +124,25 @@ export function Conversation({ conversationId }: { conversationId: string }) {
     onError: (e) => toast(friendlyError(e), 'error'),
   })
 
+  const [confirmDelete, setConfirmDelete] = useState<Message | null>(null)
+  const removeMessage = useMutation({
+    mutationFn: async (m: Message) => {
+      const { data: mediaPath, error } = await supabase.rpc('delete_my_message', { message_id: m.id })
+      if (error) throw error
+      // The server returns the file path only when it's safe to delete (i.e. not under review).
+      if (mediaPath) await supabase.storage.from('media').remove([mediaPath as string])
+      return m.id
+    },
+    onSuccess: (id) => {
+      setConfirmDelete(null)
+      qc.setQueryData<Message[]>(['messages', conversationId], (old) =>
+        old?.map((x) => (x.id === id ? { ...x, deleted_at: new Date().toISOString(), body: null, media_path: null, media_meta: null } : x)),
+      )
+      void qc.invalidateQueries({ queryKey: [isGroup ? 'groups' : 'inbox'] })
+    },
+    onError: (e) => toast(friendlyError(e), 'error'),
+  })
+
   function onSent(m: Message) {
     qc.setQueryData<Message[]>(['messages', conversationId], (old = []) => (old.some((x) => x.id === m.id) ? old : [...old, m]))
     void qc.invalidateQueries({ queryKey: [isGroup ? 'groups' : 'inbox'] })
@@ -179,7 +198,12 @@ export function Conversation({ conversationId }: { conversationId: string }) {
         {isGroup && info.data?.description && (
           <p className="mx-auto mb-4 max-w-md rounded-2xl bg-primary-soft/60 px-4 py-3 text-center text-sm text-primary-soft-text">
             {info.data.description}
-            <span className="mt-1 block text-xs opacity-80">Comparte experiencias, no consejos médicos. Sé amable 💙</span>
+            <span className="mt-1 block text-xs opacity-80">
+              Comparte experiencias, no consejos médicos. Sé amable 💙 ·{' '}
+              <Link to="/legal/normas" className="font-semibold underline underline-offset-2">
+                Normas
+              </Link>
+            </span>
           </p>
         )}
         {!joined ? (
@@ -241,19 +265,30 @@ export function Conversation({ conversationId }: { conversationId: string }) {
                         tail={!grouped && m.kind !== 'sticker'}
                         receipt={receiptFor(m)}
                         avatar={voiceAvatar}
-                        onToggleMenu={() => !mine && setSelected(selected === m.id ? null : m.id)}
+                        onToggleMenu={() => !m.deleted_at && setSelected(selected === m.id ? null : m.id)}
                       />
-                      {selected === m.id && (
-                        <button
-                          onClick={() => {
-                            setReportId(m.id)
-                            setSelected(null)
-                          }}
-                          className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-danger"
-                        >
-                          <Flag size={12} /> Reportar mensaje
-                        </button>
-                      )}
+                      {selected === m.id &&
+                        (mine ? (
+                          <button
+                            onClick={() => {
+                              setConfirmDelete(m)
+                              setSelected(null)
+                            }}
+                            className="mt-1 inline-flex items-center gap-1 rounded-full bg-surface px-2.5 py-1 text-xs font-semibold text-danger shadow-sm"
+                          >
+                            <Trash2 size={12} /> Eliminar para todos
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setReportId(m.id)
+                              setSelected(null)
+                            }}
+                            className="mt-1 inline-flex items-center gap-1 rounded-full bg-surface px-2.5 py-1 text-xs font-semibold text-danger shadow-sm"
+                          >
+                            <Flag size={12} /> Reportar mensaje
+                          </button>
+                        ))}
                     </div>
                   </li>
                 </Fragment>
@@ -272,6 +307,23 @@ export function Conversation({ conversationId }: { conversationId: string }) {
         </Button>
       </Modal>
       {reportId && <ReportDialog open onClose={() => setReportId(null)} targetType="message" targetId={reportId} />}
+      <Modal
+        open={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        title="¿Eliminar este mensaje?"
+        footer={
+          <>
+            <Button variant="secondary" block onClick={() => setConfirmDelete(null)}>
+              Cancelar
+            </Button>
+            <Button variant="danger" block loading={removeMessage.isPending} onClick={() => confirmDelete && removeMessage.mutate(confirmDelete)}>
+              Eliminar para todos
+            </Button>
+          </>
+        }
+      >
+        <p className="text-[15px] text-muted">Desaparecerá para todas las personas de la conversación. Se verá «Mensaje eliminado».</p>
+      </Modal>
     </section>
   )
 }

@@ -20,6 +20,7 @@ export interface Message {
   body: string | null
   media_path: string | null
   media_meta: { w?: number; h?: number; seconds?: number } | null
+  deleted_at?: string | null
   created_at: string
   /** Embedded for group chats; absent on messages that arrived via realtime. */
   sender?: { display_name: string; username: string; avatar_path: string | null } | null
@@ -102,6 +103,15 @@ export function useMessagesRealtime(userId: string) {
         const m = payload.new as Message
         qc.setQueryData<Message[]>(['messages', m.conversation_id], (old) =>
           old && !old.some((x) => x.id === m.id) ? [...old, m] : old,
+        )
+        void qc.invalidateQueries({ queryKey: ['inbox'] })
+        void qc.invalidateQueries({ queryKey: ['groups'] })
+      })
+      // "Eliminar para todos": the row is updated in place (body/media cleared, deleted_at set).
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, (payload) => {
+        const m = payload.new as Message
+        qc.setQueryData<Message[]>(['messages', m.conversation_id], (old) =>
+          old?.map((x) => (x.id === m.id ? { ...x, ...m, sender: x.sender } : x)),
         )
         void qc.invalidateQueries({ queryKey: ['inbox'] })
         void qc.invalidateQueries({ queryKey: ['groups'] })

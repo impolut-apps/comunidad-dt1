@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Check, CheckCheck } from 'lucide-react'
+import { Ban, Check, CheckCheck } from 'lucide-react'
 import { StoredImage, VoiceNote } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { stickerByCode } from './stickers'
@@ -43,6 +43,20 @@ export function MessageBody({
       ) : null}
     </span>
   )
+
+  if (m.deleted_at) {
+    return (
+      <span
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-2xl px-3 py-1.5 text-[14px] italic shadow-sm',
+          mine ? 'bg-primary/80 text-white/85' : 'bg-surface text-muted',
+        )}
+      >
+        <Ban size={14} aria-hidden /> {mine ? 'Eliminaste este mensaje' : 'Mensaje eliminado'}
+        <span className={cn('ml-1 text-[11px] not-italic', mine ? 'text-white/70' : 'text-muted')}>{time}</span>
+      </span>
+    )
+  }
 
   if (m.kind === 'sticker') {
     const s = m.body ? stickerByCode.get(m.body) : undefined

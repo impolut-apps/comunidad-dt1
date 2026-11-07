@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
-import { Flag, MessageSquare, MoreHorizontal, Trash2 } from 'lucide-react'
+import { Flag, MessageSquare, MoreHorizontal, Pin, Trash2 } from 'lucide-react'
 import { Avatar, Button, Card, Modal, StoredImage, useToast } from '@/components/ui'
 import { useMe } from '@/app/auth'
 import { supabase } from '@/lib/supabase'
@@ -41,6 +41,18 @@ export function PostCard({ post, linkToDetail = true }: { post: Post; linkToDeta
       setOptimistic(null)
     },
   })
+  const pin = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc('set_post_pinned', { post_id: post.id, pinned: !post.pinned_at })
+      if (error) throw error
+    },
+    onSuccess: async () => {
+      setMenu(false)
+      toast(post.pinned_at ? 'Publicación desfijada' : 'Publicación fijada arriba del muro')
+      await invalidate(post.id)
+    },
+    onError: (e) => toast(friendlyError(e), 'error'),
+  })
   const remove = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from('posts').delete().eq('id', post.id)
@@ -72,7 +84,10 @@ export function PostCard({ post, linkToDetail = true }: { post: Post; linkToDeta
             </Link>
             <span className="shrink-0 text-sm text-muted">· {timeAgo(post.created_at)}</span>
           </div>
-          <p className="truncate text-xs text-muted">@{post.author?.username}</p>
+          <p className="truncate text-xs text-muted">
+            @{post.author?.username}
+            {post.pinned_at && <span className="ml-2 font-semibold text-primary-text">📌 Fijado</span>}
+          </p>
         </div>
         <button onClick={() => setMenu(true)} className="-mr-1 rounded-full p-1.5 text-muted hover:bg-surface-muted" aria-label="Opciones">
           <MoreHorizontal size={18} />
@@ -127,6 +142,11 @@ export function PostCard({ post, linkToDetail = true }: { post: Post; linkToDeta
       </div>
 
       <Modal open={menu} onClose={() => setMenu(false)} title="Publicación">
+        {me.is_moderator && (
+          <Button variant="soft" block className="mb-2 justify-start" icon={<Pin size={18} />} loading={pin.isPending} onClick={() => pin.mutate()}>
+            {post.pinned_at ? 'Desfijar del muro' : 'Fijar arriba del muro'}
+          </Button>
+        )}
         {mine ? (
           <Button
             variant="danger"

@@ -26,7 +26,7 @@ npm run dev                 # http://localhost:5173
 | `npm run dev` | Dev server |
 | `npm run build` | Typecheck + production build (`dist/`) |
 | `npm run typecheck` | TypeScript only |
-| `npm run test:db` | Runs all migrations in PGlite (in-process Postgres) and the RLS/security test suite (63 tests) |
+| `npm run test:db` | Runs all migrations in PGlite (in-process Postgres) and the RLS/security test suite (68 tests) |
 | `node scripts/make-icons.mjs` | Regenerates placeholder PWA icons |
 
 `npm run test:db` needs no Docker and no Supabase account. It uses a stub of Supabase's `auth` and `storage`

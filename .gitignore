@@ -9,3 +9,6 @@ dev-dist
 supabase/.temp
 supabase/.branches
 .env.preview-ui
+
+.vercel
+.env*

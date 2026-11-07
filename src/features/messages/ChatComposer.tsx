@@ -13,7 +13,7 @@ import { audioExt, MAX_VOICE_SECONDS, useVoiceRecorder } from './useVoiceRecorde
 import type { Message } from './api'
 
 export const messageSelect =
-  'id, conversation_id, sender_id, kind, body, media_path, media_meta, created_at, sender:profiles!messages_sender_id_fkey(display_name, username, avatar_path)'
+  'id, conversation_id, sender_id, kind, body, media_path, media_meta, deleted_at, created_at, sender:profiles!messages_sender_id_fkey(display_name, username, avatar_path)'
 
 type NewMessage = Pick<Message, 'kind'> & Partial<Pick<Message, 'body' | 'media_path' | 'media_meta'>>
 type Panel = 'none' | 'attach' | 'emoji' | 'stickers'

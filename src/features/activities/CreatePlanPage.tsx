@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ShieldCheck } from 'lucide-react'
-import { Button, Card, Chip, Input, Textarea, useToast } from '@/components/ui'
+import { Button, Card, CardSkeleton, Chip, ErrorState, Input, Textarea, useToast } from '@/components/ui'
+import { activitySelect, participantCount, type Activity } from './api'
 import { useMe } from '@/app/auth'
 import { supabase } from '@/lib/supabase'
 import { friendlyError } from '@/lib/errors'
@@ -17,29 +18,58 @@ function toLocalInput(d: Date) {
 const suggestions = ['¿Pádel este sábado?', 'Café para conocernos', 'Ruta de senderismo', 'Ver el partido juntos']
 
 export function CreatePlanPage() {
+  return <PlanForm />
+}
+
+/** /plans/:id/edit — organizer only (RLS enforces it; this redirects everyone else). */
+export function EditPlanPage() {
+  const { id } = useParams()
+  const me = useMe()
+  const plan = useQuery({
+    queryKey: ['activity', id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('activities').select(activitySelect).eq('id', id!).maybeSingle()
+      if (error) throw error
+      return data as unknown as Activity | null
+    },
+  })
+  if (plan.isPending) return <CardSkeleton />
+  if (plan.isError) return <ErrorState message="No hemos podido cargar el plan." onRetry={() => plan.refetch()} />
+  if (!plan.data || plan.data.organizer_id !== me.id || plan.data.status !== 'open') return <Navigate to={`/plans/${id}`} replace />
+  return <PlanForm initial={plan.data} />
+}
+
+function PlanForm({ initial }: { initial?: Activity }) {
   const me = useMe()
   const navigate = useNavigate()
   const toast = useToast()
   const qc = useQueryClient()
   const { data: interests } = useInterests()
+  const editing = Boolean(initial)
 
-  const [title, setTitle] = useState('')
-  const [interestId, setInterestId] = useState<number | null>(null)
-  const [description, setDescription] = useState('')
-  const [startsAt, setStartsAt] = useState('')
-  const [country, setCountry] = useState(me.country ?? 'ES')
-  const [city, setCity] = useState(me.city ?? '')
-  const [area, setArea] = useState('')
-  const [max, setMax] = useState('')
+  const [title, setTitle] = useState(initial?.title ?? '')
+  const [interestId, setInterestId] = useState<number | null>(initial?.interest_id ?? null)
+  const [description, setDescription] = useState(initial?.description ?? '')
+  const [startsAt, setStartsAt] = useState(initial ? toLocalInput(new Date(initial.starts_at)) : '')
+  const [country, setCountry] = useState(initial?.country ?? me.country ?? 'ES')
+  const [city, setCity] = useState(initial?.city ?? me.city ?? '')
+  const [area, setArea] = useState(initial?.area_hint ?? '')
+  const [max, setMax] = useState(initial?.max_participants ? String(initial.max_participants) : '')
   const [touched, setTouched] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const start = startsAt ? new Date(startsAt) : null
+  const attendees = initial ? participantCount(initial) : 0
   const errors = {
     title: title.trim().length < 3 ? 'Ponle un título (mínimo 3 caracteres).' : null,
     startsAt: !start ? 'Elige fecha y hora.' : start <= new Date() ? 'Tiene que ser en el futuro.' : null,
     city: !city.trim() ? 'Indica la ciudad.' : null,
-    max: max && (Number(max) < 2 || Number(max) > 100) ? 'Entre 2 y 100 personas.' : null,
+    max:
+      max && (Number(max) < 2 || Number(max) > 100)
+        ? 'Entre 2 y 100 personas.'
+        : max && Number(max) < attendees
+          ? `Ya hay ${attendees} personas apuntadas.`
+          : null,
   }
   const valid = !Object.values(errors).some(Boolean)
 
@@ -48,26 +78,27 @@ export function CreatePlanPage() {
     setTouched(true)
     if (!valid) return
     setSaving(true)
-    const { data, error } = await supabase
-      .from('activities')
-      .insert({
-        organizer_id: me.id,
-        title: title.trim(),
-        interest_id: interestId,
-        description: description.trim() || null,
-        starts_at: start!.toISOString(),
-        country,
-        city: city.trim(),
-        area_hint: area.trim() || null,
-        max_participants: max ? Number(max) : null,
-      })
-      .select('id')
-      .single()
+    const fields = {
+      title: title.trim(),
+      interest_id: interestId,
+      description: description.trim() || null,
+      starts_at: start!.toISOString(),
+      country,
+      city: city.trim(),
+      area_hint: area.trim() || null,
+      max_participants: max ? Number(max) : null,
+    }
+    const { data, error } = initial
+      ? await supabase.from('activities').update(fields).eq('id', initial.id).select('id').single()
+      : await supabase.from('activities').insert({ organizer_id: me.id, ...fields }).select('id').single()
     setSaving(false)
     if (error) return toast(friendlyError(error), 'error')
-    await qc.invalidateQueries({ queryKey: ['activities'] })
-    await qc.invalidateQueries({ queryKey: ['my-activity-ids'] })
-    toast('¡Plan creado! Ya puede apuntarse la gente.')
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ['activities'] }),
+      qc.invalidateQueries({ queryKey: ['activity', data.id] }),
+      qc.invalidateQueries({ queryKey: ['my-activity-ids'] }),
+    ])
+    toast(editing ? 'Plan actualizado' : '¡Plan creado! Ya puede apuntarse la gente.')
     navigate(`/plans/${data.id}`, { replace: true })
   }
 
@@ -79,7 +110,7 @@ export function CreatePlanPage() {
         <button type="button" onClick={() => navigate(-1)} className="-ml-2 rounded-full p-2 text-muted hover:bg-surface-muted" aria-label="Volver">
           <ArrowLeft size={22} />
         </button>
-        <h1 className="text-2xl font-extrabold tracking-tight">Crear plan</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight">{editing ? 'Editar plan' : 'Crear plan'}</h1>
       </div>
 
       <Card className="space-y-5 p-5">
@@ -169,7 +200,7 @@ export function CreatePlanPage() {
 
       <div className="sticky bottom-24 z-10 lg:bottom-6">
         <Button type="submit" block size="lg" loading={saving}>
-          Publicar plan
+          {editing ? 'Guardar cambios' : 'Publicar plan'}
         </Button>
       </div>
     </form>

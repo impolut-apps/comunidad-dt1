@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { friendlyError } from '@/lib/errors'
 import { activitySelect, formatWhen, type Activity } from '@/features/activities/api'
 import { PostCard } from './PostCard'
+import { WelcomeCard } from './WelcomeCard'
 import { postSelect, useInvalidateFeed, type Post } from './api'
 
 const PAGE = 20
@@ -25,6 +26,7 @@ export function HomePage() {
       const { data, error } = await supabase
         .from('posts')
         .select(postSelect)
+        .is('pinned_at', null)
         .order('created_at', { ascending: false })
         .range(pageParam, pageParam + PAGE - 1)
       if (error) throw error
@@ -32,13 +34,31 @@ export function HomePage() {
     },
     getNextPageParam: (last, all) => (last.length === PAGE ? all.length * PAGE : undefined),
   })
+  // Team announcements pinned by moderators sit above the chronological feed.
+  const pinned = useQuery({
+    queryKey: ['feed', 'pinned'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('posts')
+        .select(postSelect)
+        .not('pinned_at', 'is', null)
+        .order('pinned_at', { ascending: false })
+        .limit(3)
+      if (error) throw error
+      return data as unknown as Post[]
+    },
+  })
   const posts = feed.data?.pages.flat() ?? []
   const iHavePosted = posts.some((p) => p.author_id === me.id)
 
   return (
     <div className="space-y-4">
       <PageHeader title={`Hola, ${me.display_name?.split(' ')[0]} 👋`} subtitle="Lo que está pasando en la comunidad" />
+      <WelcomeCard />
       <Composer intro={feed.isSuccess && !iHavePosted} />
+      {pinned.data?.map((p) => (
+        <PostCard key={p.id} post={p} />
+      ))}
       <UpcomingNearby />
 
       {feed.isPending ? (
@@ -48,7 +68,7 @@ export function HomePage() {
         </>
       ) : feed.isError ? (
         <ErrorState message="No hemos podido cargar las publicaciones." onRetry={() => feed.refetch()} />
-      ) : posts.length === 0 ? (
+      ) : posts.length === 0 && !pinned.data?.length ? (
         <EmptyState icon={<Sparkles size={28} />} title="Sé la primera persona en publicar">
           Cuenta algo de tu día, haz una pregunta o preséntate. La comunidad empieza contigo.
         </EmptyState>

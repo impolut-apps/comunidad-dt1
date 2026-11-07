@@ -65,6 +65,7 @@ export function SettingsPage() {
       <Card className="divide-y divide-border">
         {me.is_moderator && <Row to="/moderation" icon={Shield} label="Moderación" />}
         <Row to="/settings/blocked" icon={ShieldBan} label="Personas bloqueadas" />
+        <Row to="/legal/normas" icon={FileText} label="Normas de la comunidad" />
         <Row to="/legal/privacy" icon={FileText} label="Política de privacidad" />
         <Row to="/legal/terms" icon={FileText} label="Condiciones de uso" />
       </Card>

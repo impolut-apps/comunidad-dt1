@@ -86,6 +86,10 @@ export function SignupPage() {
             <Link to="/legal/privacy" target="_blank" className="font-semibold text-primary-text underline-offset-2 hover:underline">
               Política de privacidad
             </Link>
+            , y me comprometo a respetar las{' '}
+            <Link to="/legal/normas" target="_blank" className="font-semibold text-primary-text underline-offset-2 hover:underline">
+              Normas de la comunidad
+            </Link>
             .
           </Checkbox>
           <Checkbox checked={health} onChange={setHealth}>

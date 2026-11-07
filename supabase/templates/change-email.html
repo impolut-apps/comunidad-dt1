@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="es">
+  <body style="margin:0;padding:0;background:#F5F8FC;font-family:'Plus Jakarta Sans',Segoe UI,Helvetica,Arial,sans-serif;color:#142238;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F5F8FC;padding:32px 16px;">
+      <tr><td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#FFFFFF;border-radius:20px;overflow:hidden;border:1px solid #E1E8F2;">
+          <tr><td style="background:#1268D5;padding:24px 28px;">
+            <span style="display:inline-block;width:36px;height:36px;border-radius:10px;background:#FFFFFF;color:#1268D5;font-weight:800;font-size:18px;line-height:36px;text-align:center;">T1</span>
+            <span style="color:#FFFFFF;font-weight:800;font-size:20px;vertical-align:middle;margin-left:10px;">Tribu T1</span>
+          </td></tr>
+          <tr><td style="padding:28px;">
+            <h1 style="margin:0 0 12px;font-size:22px;line-height:1.3;color:#142238;">Confirma tu nuevo email</h1>
+            <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#5B6B82;">Has pedido cambiar el email de tu cuenta a {{ .NewEmail }}. Confírmalo con el botón.</p>
+            <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#1268D5;color:#FFFFFF;text-decoration:none;font-weight:700;font-size:15px;padding:14px 26px;border-radius:14px;">Confirmar cambio de email</a>
+            <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#5B6B82;">Si no has pedido este cambio, ignora este mensaje y escríbenos.</p>
+            <p style="margin:16px 0 0;font-size:12px;line-height:1.5;color:#93A4BE;word-break:break-all;">Si el botón no funciona, copia este enlace en tu navegador:<br>{{ .ConfirmationURL }}</p>
+          </td></tr>
+          <tr><td style="padding:18px 28px;background:#F5F8FC;font-size:12px;line-height:1.5;color:#93A4BE;">
+            Tribu T1 · La comunidad para adultos con diabetes tipo 1. Encuentra a tu gente.<br>
+            Has recibido este email porque alguien usó esta dirección en Tribu T1.
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>
+</html>
