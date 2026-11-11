@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ShieldCheck } from 'lucide-react'
-import { Button, Card, CardSkeleton, Chip, ErrorState, Input, Textarea, useToast } from '@/components/ui'
+import { Button, Card, CardSkeleton, Chip, ErrorState, Input, StickyActions, Textarea, useToast } from '@/components/ui'
 import { activitySelect, participantCount, type Activity } from './api'
 import { useMe } from '@/app/auth'
 import { supabase } from '@/lib/supabase'
@@ -198,11 +198,11 @@ function PlanForm({ initial }: { initial?: Activity }) {
         </p>
       </Card>
 
-      <div className="sticky bottom-24 z-10 lg:bottom-6">
+      <StickyActions>
         <Button type="submit" block size="lg" loading={saving}>
           {editing ? 'Guardar cambios' : 'Publicar plan'}
         </Button>
-      </div>
+      </StickyActions>
     </form>
   )
 }

@@ -28,21 +28,27 @@ export function MessageBody({
   avatar?: ReactNode
   onToggleMenu: () => void
 }) {
-  const meta = (onMedia = false) => (
-    <span
-      className={cn(
-        'ml-2 inline-flex translate-y-1 items-center gap-0.5 whitespace-nowrap align-bottom text-[11px]',
-        onMedia ? 'rounded-full bg-midnight/45 px-1.5 py-0.5 text-white' : mine ? 'text-white/75' : 'text-muted',
-      )}
-    >
-      {time}
-      {receipt === 'read' ? (
-        <CheckCheck size={15} className={onMedia ? 'text-mint' : mine ? 'text-mint' : 'text-primary-text'} aria-label="Leído" />
-      ) : receipt === 'sent' ? (
-        <Check size={15} aria-label="Enviado" />
-      ) : null}
-    </span>
-  )
+  // Time + ticks. 'bubble': inside a coloured bubble (white text for mine); 'media': pill over a photo;
+  // 'light': on a light surface even for my own message (stickers) — white text there would be invisible.
+  const meta = (surface: 'bubble' | 'media' | 'light' = 'bubble') => {
+    const onWhite = mine && surface === 'bubble'
+    return (
+      <span
+        className={cn(
+          'inline-flex items-center gap-0.5 whitespace-nowrap align-bottom text-[11px]',
+          surface !== 'light' && 'ml-2 translate-y-1',
+          surface === 'media' ? 'rounded-full bg-midnight/45 px-1.5 py-0.5 text-white' : onWhite ? 'text-white/75' : 'text-muted',
+        )}
+      >
+        {time}
+        {receipt === 'read' ? (
+          <CheckCheck size={15} className={surface === 'media' || onWhite ? 'text-mint' : 'text-primary-text'} aria-label="Leído" />
+        ) : receipt === 'sent' ? (
+          <Check size={15} aria-label="Enviado" />
+        ) : null}
+      </span>
+    )
+  }
 
   if (m.deleted_at) {
     return (
@@ -66,7 +72,7 @@ export function MessageBody({
           {s?.emoji ?? '✨'}
         </span>
         <span className="mt-1.5 rounded-full bg-surface px-3 py-1 text-xs font-bold text-primary-text shadow-sm">{s?.label ?? m.body}</span>
-        <span className="mt-1 rounded-full bg-surface/80 px-2 py-0.5">{meta()}</span>
+        <span className="mt-1 rounded-full bg-surface/80 px-2 py-0.5">{meta('light')}</span>
       </button>
     )
   }
@@ -94,7 +100,7 @@ export function MessageBody({
         {tailEl}
         <div className="relative overflow-hidden rounded-xl">
           <StoredImage path={m.media_path} meta={m.media_meta as { w: number; h: number } | null} alt={m.body || 'Foto'} />
-          {!hasCaption && <span className="pointer-events-none absolute bottom-1.5 right-1.5">{meta(true)}</span>}
+          {!hasCaption && <span className="pointer-events-none absolute bottom-1.5 right-1.5">{meta('media')}</span>}
         </div>
         {hasCaption && (
           <button type="button" onClick={onToggleMenu} className="block w-full cursor-default whitespace-pre-wrap break-words px-2 pb-1 pt-1.5 text-left">

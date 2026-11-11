@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
-import { Button, Card, Input, Select, Textarea, useToast } from '@/components/ui'
+import { Button, Card, Input, Select, StickyActions, Textarea, useToast } from '@/components/ui'
 import { useAuth, useMe } from '@/app/auth'
 import { supabase } from '@/lib/supabase'
 import { friendlyError } from '@/lib/errors'
@@ -141,11 +141,11 @@ export function EditProfilePage() {
         <Textarea label="En una frase" maxLength={280} showCount className="min-h-20" value={t1dNote} onChange={(e) => setT1dNote(e.target.value)} />
       </Card>
 
-      <div className="sticky bottom-24 z-10 lg:bottom-6">
+      <StickyActions>
         <Button type="submit" block size="lg" loading={saving} disabled={!valid}>
           Guardar cambios
         </Button>
-      </div>
+      </StickyActions>
     </form>
   )
 }

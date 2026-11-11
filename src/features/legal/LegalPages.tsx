@@ -24,7 +24,7 @@ function LegalShell({ title, children, draft = true }: { title: string; children
           Borrador pendiente de revisión legal. Los datos marcados con [●] deben completarse antes del lanzamiento.
         </div>
       )}
-      <div className="legal mt-6 space-y-6 text-[15px] leading-relaxed text-text [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-bold [&_li]:ml-5 [&_li]:list-disc [&_li]:pl-1 [&_p]:text-muted [&_ul]:space-y-1.5 [&_ul]:text-muted">
+      <div className="legal mt-6 space-y-6 text-[15px] leading-relaxed text-text [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-bold [&_ul>li]:ml-5 [&_ul>li]:list-disc [&_ul>li]:pl-1 [&_p]:text-muted [&_ul]:space-y-1.5 [&_ul]:text-muted">
         {children}
       </div>
     </div>

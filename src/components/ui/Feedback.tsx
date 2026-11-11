@@ -94,6 +94,21 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
   )
 }
 
+/**
+ * Primary action bar that stays visible at the bottom of a long form. It fades the content behind it
+ * (so the button never overlaps readable text) and sits above the mobile bottom navigation.
+ */
+export function StickyActions({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-10 -mx-4 px-4 pb-3 pt-10 sm:-mx-6 sm:px-6 lg:bottom-0 lg:mx-0 lg:px-0"
+      style={{ background: 'linear-gradient(to top, var(--bg) 62%, transparent)' }}
+    >
+      {children}
+    </div>
+  )
+}
+
 /** Consistent page header for top-level sections. */
 export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return (

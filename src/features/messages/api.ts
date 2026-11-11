@@ -139,5 +139,7 @@ export function dayLabel(iso: string) {
   yesterday.setDate(today.getDate() - 1)
   if (d.toDateString() === today.toDateString()) return 'Hoy'
   if (d.toDateString() === yesterday.toDateString()) return 'Ayer'
-  return longDayFmt.format(d)
+  // "sábado, 7 de noviembre" → only the first letter in capitals (CSS `capitalize` would give "De").
+  const label = longDayFmt.format(d)
+  return label.charAt(0).toUpperCase() + label.slice(1)
 }

@@ -243,7 +243,7 @@ export function Conversation({ conversationId }: { conversationId: string }) {
                 <Fragment key={m.id}>
                   {newDay && (
                     <li className="flex justify-center py-2" aria-hidden>
-                      <span className="rounded-lg bg-surface px-3 py-1 text-xs font-semibold capitalize text-muted shadow-sm">{dayLabel(m.created_at)}</span>
+                      <span className="rounded-lg bg-surface px-3 py-1 text-xs font-semibold text-muted shadow-sm">{dayLabel(m.created_at)}</span>
                     </li>
                   )}
                   <li className={cn('flex gap-1.5', mine ? 'justify-end pr-2' : 'justify-start pl-2', !grouped && 'pt-2')}>
