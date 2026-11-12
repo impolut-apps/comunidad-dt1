@@ -38,6 +38,7 @@ const editProfile = () => import('@/features/profiles/EditProfilePage')
 const settings = () => import('@/features/settings/SettingsPage')
 const blocked = () => import('@/features/settings/BlockedUsersPage')
 const moderation = () => import('@/features/safety/ModerationPage')
+const community = () => import('@/features/communities/CommunityPage')
 
 function Root(): ReactNode {
   const { session, ready } = useAuth()
@@ -60,6 +61,7 @@ export const router = createBrowserRouter([
   { path: '/legal/terms', element: page(legal, 'TermsPage') },
   { path: '/legal/privacy', element: page(legal, 'PrivacyPage') },
   { path: '/legal/normas', element: page(legal, 'GuidelinesPage') },
+  { path: '/ayuda', element: page(legal, 'HelpPage') },
   { path: '/suspended', element: <SuspendedPage /> },
   {
     element: <RequireOnboarding />,
@@ -81,6 +83,7 @@ export const router = createBrowserRouter([
           { path: '/messages', element: page(messages, 'MessagesPage') },
           { path: '/messages/:conversationId', element: page(messages, 'MessagesPage') },
           { path: '/notifications', element: page(notifications, 'NotificationsPage') },
+          { path: '/c/:slug', element: page(community, 'CommunityPage') },
           { path: '/settings/blocked', element: page(blocked, 'BlockedUsersPage') },
           { path: '/profile', element: page(profile, 'ProfilePage') },
           { path: '/profile/edit', element: page(editProfile, 'EditProfilePage') },

@@ -3,10 +3,10 @@ import { supabase } from '@/lib/supabase'
 
 export type ReactionKind = 'heart' | 'hug' | 'strong' | 'laugh'
 export const reactionKinds: Array<{ kind: ReactionKind; emoji: string; label: string }> = [
-  { kind: 'heart', emoji: '💙', label: 'Me gusta' },
-  { kind: 'hug', emoji: '🤗', label: 'Abrazo' },
-  { kind: 'strong', emoji: '💪', label: 'Ánimo' },
-  { kind: 'laugh', emoji: '😂', label: 'Me hace gracia' },
+  { kind: 'heart', emoji: '💙', label: 'Me representa' },
+  { kind: 'hug', emoji: '🤗', label: 'Te entiendo' },
+  { kind: 'strong', emoji: '💪', label: 'Qué grande' },
+  { kind: 'laugh', emoji: '😂', label: 'Jajaja' },
 ]
 
 export interface Author {

@@ -1,8 +1,8 @@
 import { useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bell, CalendarCheck, Check, MessageSquare, UserCheck, UserPlus, X } from 'lucide-react'
-import { Avatar, Button, CardSkeleton, EmptyState, ErrorState, PageHeader, useToast } from '@/components/ui'
+import { Bell, CalendarCheck, Check, EyeOff, MessageSquare, UserCheck, UserPlus, X } from 'lucide-react'
+import { Avatar, Button, CardSkeleton, EmptyState, ErrorState, LogoMark, PageHeader, useToast } from '@/components/ui'
 import { useMe } from '@/app/auth'
 import { supabase } from '@/lib/supabase'
 import { friendlyError } from '@/lib/errors'
@@ -35,7 +35,7 @@ export function NotificationsPage() {
       ]
       const connIds = entityIds(['connection_request', 'connection_accepted'])
       const actIds = entityIds(['activity_joined'])
-      const postIds = entityIds(['post_comment'])
+      const postIds = entityIds(['post_comment', 'content_hidden'])
       // Fetch what each notification points at, one query per kind (RLS applies).
       const [conns, acts, posts] = await Promise.all([
         connIds.length ? supabase.from('connections').select('id, status, addressee_id').in('id', connIds) : { data: [] },
@@ -95,6 +95,7 @@ const icons = {
   connection_accepted: UserCheck,
   activity_joined: CalendarCheck,
   post_comment: MessageSquare,
+  content_hidden: EyeOff,
 }
 
 function NotificationRow({ n, ctx }: { n: AppNotification; ctx: Context }) {
@@ -144,12 +145,28 @@ function NotificationRow({ n, ctx }: { n: AppNotification; ctx: Context }) {
       to = n.entity_id ? `/posts/${n.entity_id}` : null
       break
     }
+    case 'content_hidden': {
+      const isPost = n.entity_id ? ctx.posts.has(n.entity_id) : false
+      text = (
+        <>
+          Hemos ocultado {isPost ? 'una publicación tuya' : 'un comentario tuyo'} mientras lo revisamos: varias personas lo
+          han reportado. Si crees que es un error, el equipo lo verá.
+        </>
+      )
+      to = isPost ? `/posts/${n.entity_id}` : null
+      break
+    }
   }
 
   const summary = (
     <>
       <span className="relative shrink-0">
-        <Avatar path={n.actor?.avatar_path} name={n.actor?.display_name} size="md" />
+        {n.actor ? (
+          <Avatar path={n.actor.avatar_path} name={n.actor.display_name} size="md" />
+        ) : (
+          // Messages from the team (e.g. moderation) have no actor.
+          <LogoMark size={48} />
+        )}
         <span className="absolute -bottom-1 -right-1 flex size-6 items-center justify-center rounded-full border-2 border-bg bg-primary text-white">
           <Icon size={12} />
         </span>

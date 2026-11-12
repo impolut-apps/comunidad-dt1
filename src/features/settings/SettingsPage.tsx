@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ChevronRight, FileText, LogOut, Moon, Shield, ShieldBan, Sun, SunMoon, Trash2 } from 'lucide-react'
-import { Button, Card, Input, Modal, useToast } from '@/components/ui'
+import { ArrowLeft, ChevronRight, FileText, LifeBuoy, LogOut, Moon, Shield, ShieldBan, Sun, SunMoon, Trash2 } from 'lucide-react'
+import { Button, Card, Input, Modal, Switch, useToast } from '@/components/ui'
+import { InstallCard } from '@/components/InstallApp'
 import { useAuth, useMe } from '@/app/auth'
 import { useTheme, type ThemePref } from '@/app/theme'
 import { supabase } from '@/lib/supabase'
@@ -24,6 +25,16 @@ export function SettingsPage() {
   const [confirmText, setConfirmText] = useState('')
   const [deleting, setDeleting] = useState(false)
 
+  const { refreshProfile } = useAuth()
+  const [savingVisibility, setSavingVisibility] = useState(false)
+  async function setDiscoverable(value: boolean) {
+    setSavingVisibility(true)
+    const { error } = await supabase.from('profiles').update({ discoverable: value }).eq('id', me.id)
+    if (!error) await refreshProfile()
+    setSavingVisibility(false)
+    toast(error ? friendlyError(error) : value ? 'Vuelves a aparecer en Descubrir' : 'Ya no apareces en Descubrir', error ? 'error' : 'success')
+  }
+
   async function deleteAccount() {
     setDeleting(true)
     const { error } = await supabase.functions.invoke('delete-account', { method: 'POST' })
@@ -41,6 +52,8 @@ export function SettingsPage() {
         </button>
         <h1 className="text-2xl font-extrabold tracking-tight">Ajustes</h1>
       </div>
+
+      <InstallCard always />
 
       <Card className="p-5">
         <h2 className="font-bold">Apariencia</h2>
@@ -62,8 +75,25 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card className="divide-y divide-border">
-        {me.is_moderator && <Row to="/moderation" icon={Shield} label="Moderación" />}
+      <Card className="p-5">
+        <h2 className="mb-4 font-bold">Privacidad</h2>
+        <Switch
+          label="Aparecer en Descubrir"
+          description="Si lo desactivas, no aparecerás en búsquedas ni sugerencias. Quien ya te conozca podrá seguir viendo tu perfil y escribirte."
+          checked={me.discoverable ?? true}
+          disabled={savingVisibility}
+          onChange={setDiscoverable}
+        />
+      </Card>
+
+      <Card className="divide-y divide-border overflow-hidden">
+        <Row to="/ayuda" icon={LifeBuoy} label="¿Necesitas ayuda ahora?" />
+        {me.is_moderator && (
+          // On desktop moderation is already in the sidebar.
+          <div className="lg:hidden">
+            <Row to="/moderation" icon={Shield} label="Moderación" />
+          </div>
+        )}
         <Row to="/settings/blocked" icon={ShieldBan} label="Personas bloqueadas" />
         <Row to="/legal/normas" icon={FileText} label="Normas de la comunidad" />
         <Row to="/legal/privacy" icon={FileText} label="Política de privacidad" />

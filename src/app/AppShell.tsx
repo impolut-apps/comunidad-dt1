@@ -3,6 +3,7 @@ import { NavLink, Outlet, Link, useLocation } from 'react-router-dom'
 import { Bell, Home, Compass, CalendarDays, MessageCircle, User, Settings, Shield } from 'lucide-react'
 import { Logo, Avatar, CountDot } from '@/components/ui'
 import { useGroups, useInbox, useMessagesRealtime } from '@/features/messages/api'
+import { communityUnread, useCommunities } from '@/features/communities/api'
 import { useNotificationsRealtime, useUnreadNotifications } from '@/features/notifications/api'
 import { cn } from '@/lib/cn'
 import { supabase } from '@/lib/supabase'
@@ -38,10 +39,12 @@ export function AppShell() {
   }, [me.id])
   const { data: inbox } = useInbox()
   const { data: groups } = useGroups()
+  const { data: communities } = useCommunities()
   const { data: notifications = 0 } = useUnreadNotifications(me.id)
   const unread =
     (inbox?.reduce((n, c) => n + (c.other ? c.unread_count : 0), 0) ?? 0) +
-    (groups?.reduce((n, g) => n + g.unread_count, 0) ?? 0)
+    (groups?.reduce((n, g) => n + g.unread_count, 0) ?? 0) +
+    (communities?.reduce((n, c) => n + communityUnread(c), 0) ?? 0)
   const wide = pathname.startsWith('/messages')
   // The mobile bell floats top-right on top-level screens (not inside chats, forms or the profile, which has its own icons).
   const showBell = ['/home', '/discover', '/plans', '/messages'].includes(pathname)

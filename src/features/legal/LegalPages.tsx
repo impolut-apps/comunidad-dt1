@@ -257,6 +257,61 @@ export function TermsPage() {
   )
 }
 
+/**
+ * Crisis help. Public (no account needed) and linked from the landing, settings, guidelines,
+ * group chats and the "is in danger" report reason. We are not an emergency service — this page
+ * only points people to the ones that are.
+ */
+export function HelpPage() {
+  return (
+    <LegalShell title="¿Necesitas ayuda ahora?" draft={false}>
+      <section className="space-y-3">
+        <a
+          href="tel:112"
+          className="flex items-center gap-4 rounded-card border-2 border-danger/40 bg-danger-soft p-5 transition active:scale-[0.99]"
+        >
+          <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-danger text-2xl font-extrabold text-white">
+            112
+          </span>
+          <span>
+            <span className="block text-lg font-bold text-danger">Emergencias: llama al 112</span>
+            <span className="block text-[15px] text-text">
+              Si tú u otra persona estáis en peligro, o hay una emergencia médica (por ejemplo, una hipoglucemia grave).
+            </span>
+          </span>
+        </a>
+        <a href="tel:024" className="flex items-center gap-4 rounded-card border border-border bg-surface p-5 transition active:scale-[0.99]">
+          <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-2xl font-extrabold text-white">
+            024
+          </span>
+          <span>
+            <span className="block text-lg font-bold">Si piensas en hacerte daño: 024</span>
+            <span className="block text-[15px] text-muted">Línea de atención a la conducta suicida en España. Gratuita y confidencial.</span>
+          </span>
+        </a>
+        <p>Si estás fuera de España, llama al número de emergencias de tu país.</p>
+      </section>
+
+      <section>
+        <h2>Lo que {brand.name} puede y no puede hacer</h2>
+        <p>
+          Aquí encontrarás personas que te escuchan y te entienden, pero <strong>no somos un servicio de emergencias ni de
+          atención psicológica</strong>, y nadie vigila los mensajes en tiempo real. Para tu salud, tu equipo médico es
+          siempre la referencia.
+        </p>
+      </section>
+
+      <section>
+        <h2>Si ves a alguien en peligro en la comunidad</h2>
+        <p>
+          Si hay riesgo inmediato, llama al 112. Después, usa «Reportar» y elige «Parece estar en peligro»: lo revisamos
+          con la máxima prioridad.
+        </p>
+      </section>
+    </LegalShell>
+  )
+}
+
 const rules: Array<{ emoji: string; title: string; text: ReactNode }> = [
   { emoji: '💙', title: 'Trata a los demás como te gustaría que te trataran', text: 'Aquí cada persona vive la T1 a su manera. Nada de insultos, burlas, acoso ni discriminación por ningún motivo.' },
   {
@@ -302,6 +357,16 @@ export function GuidelinesPage() {
           </li>
         ))}
       </ol>
+      <section>
+        <h2>¿Necesitas ayuda urgente?</h2>
+        <p>
+          Esto no es un servicio de emergencias.{' '}
+          <Link to="/ayuda" className="font-semibold text-primary-text underline-offset-2 hover:underline">
+            Aquí tienes a quién llamar
+          </Link>
+          .
+        </p>
+      </section>
       <section>
         <h2>Qué pasa si no se cumplen</h2>
         <p>

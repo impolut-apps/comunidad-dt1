@@ -10,6 +10,7 @@ import { cn } from '@/lib/cn'
 import { ReportDialog } from '@/features/safety/safety'
 import { clock, dayLabel, useConversationInfo, useGroups, useInbox, type Message } from './api'
 import { GroupIcon, useJoinGroup } from './groups'
+import { communityCover, useCommunities, useJoinCommunity } from '@/features/communities/api'
 import { ChatComposer, messageSelect } from './ChatComposer'
 import { MessageBody, type Receipt } from './MessageBody'
 
@@ -22,18 +23,26 @@ export function Conversation({ conversationId }: { conversationId: string }) {
   const qc = useQueryClient()
   const info = useConversationInfo(conversationId)
   const isGroup = info.data?.kind === 'group'
+  const communityId = info.data?.community_id ?? null
   const inbox = useInbox()
   const groups = useGroups()
+  const communities = useCommunities(Boolean(communityId))
   const other = inbox.data?.find((c) => c.conversation_id === conversationId)?.other
   const group = groups.data?.find((g) => g.id === conversationId)
-  const joined = !isGroup || Boolean(group?.joined)
+  const community = communityId ? communities.data?.find((c) => c.id === communityId) : undefined
+  const joined = !isGroup || (communityId ? Boolean(community?.joined) : Boolean(group?.joined))
   const join = useJoinGroup(conversationId)
+  const joinCommunity = useJoinCommunity()
+  const isAnnouncements = info.data?.channel === 'announcements'
+  // Announcements: only the host and the team write (the database enforces it too).
+  const canWrite = !isAnnouncements || community?.host_id === me.id || Boolean(me.is_moderator)
 
   const [reportId, setReportId] = useState<string | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [menu, setMenu] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const backTo = isGroup ? '/messages?tab=groups' : '/messages'
+  const backTo = community ? `/c/${community.slug}` : isGroup ? '/messages?tab=groups' : '/messages'
+  const listKey = communityId ? 'communities' : isGroup ? 'groups' : 'inbox'
 
   const messages = useQuery({
     queryKey: ['messages', conversationId],
@@ -66,8 +75,8 @@ export function Conversation({ conversationId }: { conversationId: string }) {
       .update({ last_read_at: new Date().toISOString() })
       .eq('conversation_id', conversationId)
       .eq('user_id', me.id)
-      .then(() => qc.invalidateQueries({ queryKey: [isGroup ? 'groups' : 'inbox'] }))
-  }, [conversationId, lastId, me.id, qc, joined, isGroup, info.isSuccess])
+      .then(() => qc.invalidateQueries({ queryKey: [listKey] }))
+  }, [conversationId, lastId, me.id, qc, joined, listKey, info.isSuccess])
 
   useLayoutEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' })
@@ -138,14 +147,14 @@ export function Conversation({ conversationId }: { conversationId: string }) {
       qc.setQueryData<Message[]>(['messages', conversationId], (old) =>
         old?.map((x) => (x.id === id ? { ...x, deleted_at: new Date().toISOString(), body: null, media_path: null, media_meta: null } : x)),
       )
-      void qc.invalidateQueries({ queryKey: [isGroup ? 'groups' : 'inbox'] })
+      void qc.invalidateQueries({ queryKey: [listKey] })
     },
     onError: (e) => toast(friendlyError(e), 'error'),
   })
 
   function onSent(m: Message) {
     qc.setQueryData<Message[]>(['messages', conversationId], (old = []) => (old.some((x) => x.id === m.id) ? old : [...old, m]))
-    void qc.invalidateQueries({ queryKey: [isGroup ? 'groups' : 'inbox'] })
+    void qc.invalidateQueries({ queryKey: [listKey] })
   }
 
   const unavailable = info.isSuccess && (!info.data || (!isGroup && inbox.isSuccess && !other))
@@ -166,7 +175,19 @@ export function Conversation({ conversationId }: { conversationId: string }) {
         <button onClick={() => navigate(backTo)} className="-ml-2 rounded-full p-2 text-muted hover:bg-surface-muted lg:hidden" aria-label="Volver">
           <ArrowLeft size={22} />
         </button>
-        {isGroup && info.data ? (
+        {community ? (
+          <Link to={`/c/${community.slug}`} className="flex min-w-0 flex-1 items-center gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl text-xl" style={communityCover(community.slug)} aria-hidden>
+              {community.emoji ?? '💙'}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate font-bold">{community.name}</span>
+              <span className="block truncate text-xs text-muted">
+                {isAnnouncements ? '📣 Avisos' : '💬 Charla'} · {community.member_count} {community.member_count === 1 ? 'miembro' : 'miembros'}
+              </span>
+            </span>
+          </Link>
+        ) : isGroup && info.data ? (
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <GroupIcon emoji={info.data.emoji} size="sm" />
             <span className="min-w-0">
@@ -187,7 +208,7 @@ export function Conversation({ conversationId }: { conversationId: string }) {
         ) : (
           <div className="flex-1" />
         )}
-        {isGroup && joined && (
+        {isGroup && !communityId && joined && (
           <button onClick={() => setMenu(true)} className="-mr-2 rounded-full p-2 text-muted hover:bg-surface-muted" aria-label="Opciones del grupo">
             <MoreVertical size={20} />
           </button>
@@ -195,7 +216,20 @@ export function Conversation({ conversationId }: { conversationId: string }) {
       </header>
 
       <div className="flex-1 overflow-y-auto px-3 py-3 sm:px-5">
-        {isGroup && info.data?.description && (
+        {community && (
+          <p className="mx-auto mb-4 max-w-md rounded-2xl bg-primary-soft/60 px-4 py-3 text-center text-sm text-primary-soft-text">
+            {isAnnouncements
+              ? `Aquí publica ${community.host_name ?? 'el equipo'}: novedades, planes y mensajes para toda la comunidad.`
+              : (community.description ?? 'La charla de la comunidad: preséntate y conoce al resto.')}
+            <span className="mt-1 block text-xs opacity-80">
+              Comparte experiencias, no consejos médicos. Sé amable 💙 ·{' '}
+              <Link to="/legal/normas" className="font-semibold underline underline-offset-2">
+                Normas
+              </Link>
+            </span>
+          </p>
+        )}
+        {isGroup && !communityId && info.data?.description && (
           <p className="mx-auto mb-4 max-w-md rounded-2xl bg-primary-soft/60 px-4 py-3 text-center text-sm text-primary-soft-text">
             {info.data.description}
             <span className="mt-1 block text-xs opacity-80">
@@ -207,12 +241,25 @@ export function Conversation({ conversationId }: { conversationId: string }) {
           </p>
         )}
         {!joined ? (
-          <div className="py-10 text-center">
-            <p className="text-[15px] text-muted">Únete al grupo para leer la conversación y participar.</p>
-            <Button className="mt-4" loading={join.isPending} onClick={() => join.mutate()}>
-              Unirme al grupo
-            </Button>
-          </div>
+          community ? (
+            <div className="py-10 text-center">
+              <p className="text-[15px] text-muted">Únete a la comunidad para leer los avisos y hablar con el resto.</p>
+              <Button className="mt-4" loading={joinCommunity.isPending} onClick={() => joinCommunity.mutate(community)}>
+                Unirme a la comunidad
+              </Button>
+            </div>
+          ) : communityId ? (
+            <div className="flex justify-center py-10 text-primary-text">
+              <Spinner />
+            </div>
+          ) : (
+            <div className="py-10 text-center">
+              <p className="text-[15px] text-muted">Únete al grupo para leer la conversación y participar.</p>
+              <Button className="mt-4" loading={join.isPending} onClick={() => join.mutate()}>
+                Unirme al grupo
+              </Button>
+            </div>
+          )
         ) : messages.isPending || info.isPending ? (
           <div className="flex justify-center py-10 text-primary-text">
             <Spinner />
@@ -222,7 +269,15 @@ export function Conversation({ conversationId }: { conversationId: string }) {
         ) : list.length === 0 ? (
           <div className="py-12 text-center text-[15px] text-muted">
             <p className="text-3xl">👋</p>
-            <p className="mt-2">{isGroup ? 'Rompe el hielo: preséntate al grupo.' : 'Empieza la conversación. Seguro que tenéis mucho en común.'}</p>
+            <p className="mt-2">
+              {isAnnouncements
+                ? canWrite
+                  ? 'Escribe el primer aviso: preséntate a tu comunidad.'
+                  : 'Todavía no hay avisos. Te avisaremos aquí.'
+                : isGroup
+                  ? 'Rompe el hielo: preséntate al grupo.'
+                  : 'Empieza la conversación. Seguro que tenéis mucho en común.'}
+            </p>
           </div>
         ) : (
           <ol className="space-y-1">
@@ -299,7 +354,18 @@ export function Conversation({ conversationId }: { conversationId: string }) {
         <div ref={bottomRef} />
       </div>
 
-      {joined && info.isSuccess && <ChatComposer conversationId={conversationId} isGroup={isGroup} onSent={onSent} />}
+      {joined && info.isSuccess && (canWrite ? (
+        <ChatComposer conversationId={conversationId} isGroup={isGroup} onSent={onSent} />
+      ) : (
+        <p className="border-t border-border bg-surface px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] text-center text-sm text-muted">
+          📣 Solo {community?.host_name ?? 'el anfitrión'} y el equipo publican avisos.{' '}
+          {community && (
+            <Link to={`/messages/${community.chat_id}`} className="font-semibold text-primary-text">
+              Ir a la charla
+            </Link>
+          )}
+        </p>
+      ))}
 
       <Modal open={menu} onClose={() => setMenu(false)} title={info.data?.title ?? 'Grupo'}>
         <Button variant="danger" block className="justify-start" icon={<LogOut size={18} />} loading={leave.isPending} onClick={() => leave.mutate()}>

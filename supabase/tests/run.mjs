@@ -533,6 +533,199 @@ await test('only moderators can pin posts', async () => {
   assert(row.pinned_at, 'not pinned')
 })
 
+console.log('\nLaunch controls')
+await test('sign-up mode is readable by anyone, defaults to open, settings stay private', async () => {
+  const [{ m }] = await as(null, 'select public.signup_mode() m')
+  assert(m === 'open', `mode ${m}`)
+  await rejects(as(A, 'select * from public.app_settings'), 'permission denied')
+  await rejects(as(A, 'select * from public.invite_codes'), 'permission denied')
+  await rejects(as(A, `update public.app_settings set value = 'closed'`), 'permission denied')
+})
+await test('invite mode needs a valid, unused, unexpired code; only moderators generate codes', async () => {
+  await rejects(as(A, 'select * from public.generate_invite_codes(1)'), 'not_allowed')
+  await rejects(as(null, 'select * from public.generate_invite_codes(1)'), 'permission denied')
+  const codes = (await as(M, `select * from public.generate_invite_codes(2, 1, 'embajadores', 7)`)).map((r) => r.generate_invite_codes)
+  assert(codes.length === 2 && codes.every((c) => /^T1-[A-F0-9]{8}$/.test(c)), JSON.stringify(codes))
+  const listed = await as(M, 'select * from public.list_invite_codes()')
+  assert(listed.length === 2 && listed[0].uses === 0, JSON.stringify(listed))
+  await rejects(as(A, 'select * from public.list_invite_codes()'), 'not_allowed')
+
+  await db.query(`update public.app_settings set value = 'invite' where key = 'signup_mode'`)
+  const [{ ok: good }] = await as(null, 'select public.check_invite_code($1) ok', [codes[0].toLowerCase()])
+  const [{ ok: bad }] = await as(null, 'select public.check_invite_code($1) ok', ['NOPE-NOPE'])
+  assert(good && !bad, 'check_invite_code')
+
+  await rejects(createUser('i0@test.dev'), 'invalid_invite')
+  await rejects(createUser('i1@test.dev', { meta: { ...consent, invite_code: 'T1-DEADBEEF' } }), 'invalid_invite')
+  const id = await createUser('i2@test.dev', { meta: { ...consent, invite_code: codes[0].toLowerCase() } })
+  const red = (await db.query('select code from public.invite_redemptions where user_id = $1', [id])).rows
+  assert(red.length === 1 && red[0].code === codes[0], 'redemption not recorded')
+  await rejects(createUser('i3@test.dev', { meta: { ...consent, invite_code: codes[0] } }), 'invalid_invite') // single use
+
+  await db.query(`insert into public.invite_codes (code, max_uses, expires_at) values ('T1-EXPIRED1', 5, now() - interval '1 day')`)
+  await rejects(createUser('i4@test.dev', { meta: { ...consent, invite_code: 'T1-EXPIRED1' } }), 'invalid_invite')
+
+  await db.query(`update public.app_settings set value = 'closed' where key = 'signup_mode'`)
+  await rejects(createUser('i5@test.dev', { meta: { ...consent, invite_code: codes[1] } }), 'signups_closed')
+
+  await db.query(`update public.app_settings set value = 'open' where key = 'signup_mode'`)
+  await createUser('i6@test.dev') // open again: no code needed
+  await rejects(db.query(`update public.app_settings set value = 'whatever' where key = 'signup_mode'`), 'app_settings_signup_mode')
+})
+await test('moderators can pick a custom code; it also counts while sign-up is open', async () => {
+  await rejects(as(A, `select public.create_invite_code('CARLOS')`), 'not_allowed')
+  await rejects(as(null, `select public.create_invite_code('CARLOS')`), 'permission denied')
+  await rejects(as(M, `select public.create_invite_code('no vale!')`), 'invalid_code')
+  await rejects(as(M, `select public.create_invite_code('AB')`), 'invalid_code')
+  const [{ c }] = await as(M, `select public.create_invite_code(' carlos ', 2, 'Influencer Carlos') c`)
+  assert(c === 'CARLOS', `code ${c}`)
+  await rejects(as(M, `select public.create_invite_code('Carlos')`), 'code_taken')
+
+  // Open mode: no code is fine, a valid code is counted, a wrong one is refused.
+  const plain = await createUser('o1@test.dev')
+  const none = (await db.query('select 1 from public.invite_redemptions where user_id = $1', [plain])).rows
+  assert(none.length === 0, 'redemption without code')
+  const id = await createUser('o2@test.dev', { meta: { ...consent, invite_code: 'carlos' } })
+  const red = (await db.query('select code from public.invite_redemptions where user_id = $1', [id])).rows
+  assert(red.length === 1 && red[0].code === 'CARLOS', 'open-mode redemption not recorded')
+  await rejects(createUser('o3@test.dev', { meta: { ...consent, invite_code: 'NOEXISTE' } }), 'invalid_invite')
+  await createUser('o4@test.dev', { meta: { ...consent, invite_code: 'CARLOS' } })
+  await rejects(createUser('o5@test.dev', { meta: { ...consent, invite_code: 'CARLOS' } }), 'invalid_invite') // 2 uses max
+  const [{ uses }] = (await db.query(`select uses from public.invite_codes where code = 'CARLOS'`)).rows
+  assert(uses === 2, `uses ${uses}`)
+})
+await test('moderators can edit, pause and delete codes', async () => {
+  await as(M, `select public.create_invite_code('ANA', 10, 'Instagram de Ana')`)
+  await rejects(as(A, `select public.update_invite_code('ANA', 5, null, null, true)`), 'not_allowed')
+  await rejects(as(A, `select public.delete_invite_code('ANA')`), 'not_allowed')
+  await rejects(as(null, `select public.delete_invite_code('ANA')`), 'permission denied')
+
+  await createUser('e1@test.dev', { meta: { ...consent, invite_code: 'ANA' } })
+  await rejects(as(M, `select public.update_invite_code('ANA', 0, null, null, true)`), 'invalid_code')
+  await as(M, `select public.update_invite_code('ana', 50, 'Ana · TikTok', null, true)`)
+  let [row] = (await as(M, `select * from public.list_invite_codes() where code = 'ANA'`))
+  assert(row.max_uses === 50 && row.note === 'Ana · TikTok' && row.uses === 1 && row.disabled_at === null, JSON.stringify(row))
+
+  // Paused: refused at sign-up and by the pre-check; resuming works again.
+  await as(M, `select public.update_invite_code('ANA', 50, 'Ana · TikTok', null, false)`)
+  const [{ ok }] = await as(null, `select public.check_invite_code('ANA') ok`)
+  assert(!ok, 'paused code still valid')
+  await rejects(createUser('e2@test.dev', { meta: { ...consent, invite_code: 'ANA' } }), 'invalid_invite')
+  await as(M, `select public.update_invite_code('ANA', 50, null, null, true)`)
+  await createUser('e3@test.dev', { meta: { ...consent, invite_code: 'ANA' } })
+  await rejects(as(M, `select public.update_invite_code('ANA', 1, null, null, true)`), 'max_below_uses')
+
+  // Delete: the code and its sign-up records go, the accounts stay.
+  const before = (await db.query('select count(*)::int n from public.profiles')).rows[0].n
+  await as(M, `select public.delete_invite_code('ANA')`)
+  const left = (await db.query(`select count(*)::int n from public.invite_redemptions where code = 'ANA'`)).rows[0].n
+  const after = (await db.query('select count(*)::int n from public.profiles')).rows[0].n
+  assert(left === 0 && before === after, `redemptions ${left}, profiles ${before}->${after}`)
+  await rejects(as(M, `select public.delete_invite_code('ANA')`), 'invite_not_found')
+})
+console.log('\nCreator communities')
+let comm
+await test('only moderators create communities; the host is inside both channels', async () => {
+  await rejects(as(A, `select public.save_community(null, 'carlos', 'La tribu de Carlos', null, '🔥', 'bea')`), 'not_allowed')
+  await rejects(as(M, `select public.save_community(null, 'Mal Slug!', 'La tribu', null, null, null)`), 'invalid_community')
+  await rejects(as(M, `select public.save_community(null, 'carlos', 'La tribu de Carlos', null, null, 'nadie')`), 'host_not_found')
+  const [{ s }] = await as(M, `select public.save_community(null, 'carlos', 'La tribu de Carlos', 'Mi gente', '🔥', '@Bea') s`)
+  assert(s === 'carlos', s)
+  await rejects(as(M, `select public.save_community(null, 'carlos', 'Otra', null, null, null)`), 'slug_taken')
+  ;[comm] = await as(B, `select * from public.list_communities() where slug = 'carlos'`)
+  assert(comm.joined && comm.host_id === B && Number(comm.member_count) === 1, JSON.stringify(comm))
+  // Community channels never show up among the topic groups.
+  const groups = await as(A, 'select title from public.list_groups()')
+  assert(!groups.some((g) => g.title === 'Avisos' || g.title === 'Charla'), 'channels leaked into groups')
+  const none = await as(U, 'select * from public.list_communities()')
+  assert(none.length === 0, 'non-member saw communities')
+})
+await test('only the host and moderators post announcements; everyone talks in the chat', async () => {
+  await db.query(`update public.messages set created_at = created_at - interval '1 day'`) // clear the anti-spam window
+  await as(A, 'select public.join_community($1)', [comm.id])
+  await as(B, `insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Bienvenidos a mi comunidad')`, [comm.announcements_id, B])
+  await rejects(as(A, `insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'yo también')`, [comm.announcements_id, A]), 'row-level security')
+  await as(A, `insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Hola a todos')`, [comm.chat_id, A])
+  await as(M, 'select public.join_community($1)', [comm.id])
+  await as(M, `insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Aviso del equipo')`, [comm.announcements_id, M])
+  const [c] = await as(A, `select * from public.list_communities() where id = $1`, [comm.id])
+  assert(c.joined && Number(c.member_count) === 3 && c.last_announcement_body === 'Aviso del equipo', JSON.stringify(c))
+  // Outsiders see the latest announcement (a broadcast) but not the chat.
+  const D = await createUser('outsider@test.dev')
+  await onboard(D, 'dani', 'Sevilla', ['music'])
+  const [o] = await as(D, `select * from public.list_communities() where id = $1`, [comm.id])
+  assert(o && !o.joined && o.last_announcement_body === 'Aviso del equipo' && o.last_chat_body === null, JSON.stringify(o))
+  const chat = await as(D, 'select * from public.messages where conversation_id = $1', [comm.chat_id])
+  assert(chat.length === 0, 'outsider read the chat')
+})
+await test('members leave as a unit; the host cannot leave their own community', async () => {
+  await as(A, 'select public.leave_community($1)', [comm.id])
+  const left = await db.query('select 1 from public.conversation_participants p join public.conversations c on c.id = p.conversation_id where c.community_id = $1 and p.user_id = $2', [comm.id, A])
+  assert(left.rows.length === 0, 'still inside a channel')
+  await rejects(as(B, 'select public.leave_community($1)', [comm.id]), 'host_cannot_leave')
+})
+await test('signing up with a code linked to a community joins it', async () => {
+  await as(M, `select public.create_invite_code('TRIBUCARLOS', 100, 'Carlos', null, $1)`, [comm.id])
+  const [{ n }] = await as(null, `select public.invite_code_community('tribucarlos') n`)
+  assert(n === 'La tribu de Carlos', n)
+  const id = await createUser('fan@test.dev', { meta: { ...consent, invite_code: 'tribucarlos' } })
+  const rows = await db.query('select c.channel from public.conversation_participants p join public.conversations c on c.id = p.conversation_id where c.community_id = $1 and p.user_id = $2', [comm.id, id])
+  assert(rows.rows.length === 2, `joined ${rows.rows.length} channels`)
+  const [code] = await as(M, `select * from public.list_invite_codes() where code = 'TRIBUCARLOS'`)
+  assert(code.community_name === 'La tribu de Carlos', JSON.stringify(code))
+  await as(M, `select public.update_invite_code('TRIBUCARLOS', 100, null, null, true, null)`)
+  const [{ n: none }] = await as(null, `select public.invite_code_community('TRIBUCARLOS') n`)
+  assert(none === null, 'unlinked code still points at the community')
+})
+await test('moderators edit and delete communities', async () => {
+  await rejects(as(A, 'select public.delete_community($1)', [comm.id]), 'not_allowed')
+  await as(M, `select public.save_community($1, 'carlos-t1', 'La tribu de Carlos', 'Nueva descripción', '💙', 'bea')`, [comm.id])
+  const [c] = await as(A, `select * from public.list_communities() where id = $1`, [comm.id])
+  assert(c.slug === 'carlos-t1' && c.description === 'Nueva descripción', JSON.stringify(c))
+  await as(M, 'select public.delete_community($1)', [comm.id])
+  const gone = await db.query('select 1 from public.conversations where community_id = $1', [comm.id])
+  assert(gone.rows.length === 0, 'channels survived')
+})
+await test('only moderators can flip the sign-up switch from the app', async () => {
+  await rejects(as(A, `select public.set_signup_mode('closed')`), 'not_allowed')
+  await rejects(as(null, `select public.set_signup_mode('closed')`), 'permission denied')
+  await rejects(as(M, `select public.set_signup_mode('everything')`), 'invalid_action')
+  await as(M, `select public.set_signup_mode('invite')`)
+  const [{ m }] = await as(null, 'select public.signup_mode() m')
+  assert(m === 'invite', `mode ${m}`)
+  await as(M, `select public.set_signup_mode('open')`)
+  const [{ m: back }] = await as(null, 'select public.signup_mode() m')
+  assert(back === 'open', `mode ${back}`)
+})
+await test('new report reasons are accepted', async () => {
+  const targets = { illegal_sale: M, scam: A, self_harm: U }
+  for (const [reason, target] of Object.entries(targets)) {
+    await db.query(`insert into public.reports (reporter_id, target_type, target_id, reason) values ($1, 'user', $2, $3)`, [B, target, reason])
+  }
+  const r = await db.query(`select count(*)::int n from public.reports where reporter_id = $1 and reason in ('illegal_sale', 'scam', 'self_harm')`, [B])
+  assert(r.rows[0].n === 3, `reports ${r.rows[0].n}`)
+})
+await test('authors are told once when reports hide their content', async () => {
+  const [{ id }] = await as(B, `insert into public.posts (author_id, body) values ($1, 'Contenido discutido') returning id`, [B])
+  for (const reporter of [A, M, C, U]) {
+    await db.query(`insert into public.reports (reporter_id, target_type, target_id, reason) values ($1, 'post', $2, 'other')`, [reporter, id])
+  }
+  const p = await db.query('select moderation_status from public.posts where id = $1', [id])
+  assert(p.rows[0].moderation_status === 'hidden', 'post not hidden')
+  const n = await as(B, `select entity_id from public.notifications where type = 'content_hidden'`)
+  assert(n.length === 1 && n[0].entity_id === id, `notifications: ${JSON.stringify(n)}`)
+})
+await test('members can hide themselves from Discover and search', async () => {
+  await as(B, 'update public.profiles set discoverable = false where id = $1', [B])
+  const hidden = await as(M, 'select username from public.discover_people()')
+  assert(!hidden.some((r) => r.username === 'bea'), 'hidden member still listed')
+  const searched = await as(M, `select username from public.discover_people(p_query => 'bea')`)
+  assert(searched.length === 0, 'hidden member found by search')
+  await as(B, 'update public.profiles set discoverable = true where id = $1', [B])
+  const back = await as(M, 'select username from public.discover_people()')
+  assert(back.some((r) => r.username === 'bea'), 'member did not come back')
+})
+
 console.log('\nAccount deletion')
 await test('deleting an auth user cascades through all their data', async () => {
   await db.query('delete from auth.users where id=$1', [A])

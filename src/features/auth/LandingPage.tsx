@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom'
 import { Compass, CalendarDays, MessageCircle, ShieldCheck } from 'lucide-react'
 import { Logo } from '@/components/ui'
+import { InstallCard } from '@/components/InstallApp'
 import { brand } from '@/lib/brand'
 import { PeopleCluster } from './AuthLayout'
+import { useSignupMode } from './useSignupMode'
 
 const features = [
   { icon: Compass, title: 'Conoce gente cerca', text: 'Personas con diabetes tipo 1 en tu ciudad y con tus aficiones.' },
@@ -12,6 +14,7 @@ const features = [
 ]
 
 export function LandingPage() {
+  const { mode } = useSignupMode()
   return (
     <div className="min-h-dvh">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-8">
@@ -34,12 +37,18 @@ export function LandingPage() {
             deporte, viajar, tomar algo o simplemente hablar.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link
-              to="/signup"
-              className="inline-flex h-13 items-center justify-center rounded-2xl bg-primary px-7 text-base font-semibold text-white shadow-lg shadow-primary/25 transition hover:bg-primary-hover active:scale-[0.98]"
-            >
-              Únete gratis
-            </Link>
+            {mode === 'closed' ? (
+              <p className="rounded-2xl bg-primary-soft px-5 py-3.5 text-[15px] font-semibold text-primary-soft-text">
+                El registro está cerrado de momento. Vuelve pronto.
+              </p>
+            ) : (
+              <Link
+                to="/signup"
+                className="inline-flex h-13 items-center justify-center rounded-2xl bg-primary px-7 text-base font-semibold text-white shadow-lg shadow-primary/25 transition hover:bg-primary-hover active:scale-[0.98]"
+              >
+                {mode === 'invite' ? 'Tengo una invitación' : 'Únete gratis'}
+              </Link>
+            )}
             <Link
               to="/login"
               className="inline-flex h-13 items-center justify-center rounded-2xl border border-border bg-surface px-7 text-base font-semibold hover:bg-surface-muted"
@@ -47,6 +56,7 @@ export function LandingPage() {
               Ya tengo cuenta
             </Link>
           </div>
+          <InstallCard className="mt-6 max-w-lg" />
         </div>
         <div className="relative mx-auto w-full max-w-md overflow-hidden rounded-[2rem] bg-primary p-10 shadow-2xl shadow-primary/30">
           <div className="absolute -right-16 -top-16 size-64 rounded-full bg-electric/70 blur-3xl" />
@@ -80,6 +90,10 @@ export function LandingPage() {
           ·{' '}
           <Link to="/legal/terms" className="hover:underline">
             Condiciones
+          </Link>{' '}
+          ·{' '}
+          <Link to="/ayuda" className="hover:underline">
+            ¿Necesitas ayuda ahora?
           </Link>
         </p>
       </footer>

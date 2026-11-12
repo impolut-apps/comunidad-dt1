@@ -57,13 +57,20 @@ export interface ConversationInfo {
   title: string | null
   description: string | null
   emoji: string | null
+  /** Set when this is one of a creator community's two channels. */
+  community_id: string | null
+  channel: 'announcements' | 'chat' | null
 }
 
 export function useConversationInfo(id: string) {
   return useQuery({
     queryKey: ['conversation', id],
     queryFn: async () => {
-      const { data, error } = await supabase.from('conversations').select('id, kind, title, description, emoji').eq('id', id).maybeSingle()
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('id, kind, title, description, emoji, community_id, channel')
+        .eq('id', id)
+        .maybeSingle()
       if (error) throw error
       return data as ConversationInfo | null
     },
@@ -106,6 +113,7 @@ export function useMessagesRealtime(userId: string) {
         )
         void qc.invalidateQueries({ queryKey: ['inbox'] })
         void qc.invalidateQueries({ queryKey: ['groups'] })
+        void qc.invalidateQueries({ queryKey: ['communities'] })
       })
       // "Eliminar para todos": the row is updated in place (body/media cleared, deleted_at set).
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, (payload) => {

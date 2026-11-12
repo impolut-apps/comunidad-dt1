@@ -18,6 +18,20 @@ const messages: Record<string, string> = {
   reports_one_per_target: 'Ya habías reportado esto. Lo estamos revisando.',
   'policy for table "messages"': 'No puedes enviar mensajes en esta conversación.',
   rate_limited: 'Vas muy rápido. Espera un momento y vuelve a intentarlo.',
+  invalid_invite: 'Ese código no es válido, ha caducado o ya se ha usado. Revísalo o déjalo en blanco.',
+  code_taken: 'Ese código ya existe. Elige otro.',
+  invalid_code: 'El código debe tener entre 3 y 24 letras, números o guiones, y al menos 1 uso.',
+  max_below_uses: 'Ya se ha usado más veces que ese máximo.',
+  invite_not_found: 'Ese código ya no existe.',
+  community_not_found: 'Esta comunidad ya no existe.',
+  invalid_community: 'Revisa el nombre (3-60 caracteres) y el enlace (3-30 letras, números o guiones).',
+  slug_taken: 'Ya hay una comunidad con ese enlace. Elige otro.',
+  host_not_found: 'No encontramos a nadie con ese usuario. Comprueba que tenga cuenta.',
+  host_cannot_leave: 'Eres quien anima esta comunidad: no puedes salir de ella.',
+  signups_closed: 'El registro está cerrado de momento. Vuelve a intentarlo más tarde.',
+  // Supabase hides sign-up trigger errors behind this generic text.
+  'Database error saving new user':
+    'No hemos podido crear tu cuenta. Si usas una invitación, comprueba el código; si no, inténtalo de nuevo en unos minutos.',
   activity_capacity_below_attendees: 'Ya hay más personas apuntadas que ese máximo.',
 }
 

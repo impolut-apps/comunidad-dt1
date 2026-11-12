@@ -22,6 +22,7 @@ import { friendlyError } from '@/lib/errors'
 import { cn } from '@/lib/cn'
 import type { ReportTarget } from './safety'
 import { StatsPanel } from './StatsPanel'
+import { AccessPanel } from './AccessPanel'
 
 interface Report {
   id: string
@@ -56,8 +57,23 @@ const reasonLabels: Record<string, string> = {
   medical_misinformation: 'Desinformación médica',
   impersonation: 'Suplantación',
   underage: 'Posible menor',
+  illegal_sale: 'Venta ilegal',
+  scam: 'Estafa',
+  self_harm: 'En peligro',
   other: 'Otro',
 }
+// Lower = more urgent. The queue shows the most serious cases first.
+const severity: Record<string, number> = {
+  self_harm: 0,
+  harassment: 1,
+  underage: 1,
+  illegal_sale: 1,
+  scam: 2,
+  hate: 2,
+  sexual: 2,
+  medical_misinformation: 2,
+}
+const isSerious = (reason: string) => (severity[reason] ?? 9) <= 2
 const targetLabels: Record<ReportTarget, string> = {
   user: 'Perfil',
   post: 'Publicación',
@@ -68,10 +84,10 @@ const targetLabels: Record<ReportTarget, string> = {
 const dateFmt = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
 export function ModerationPage() {
-  const [view, setView] = useState<'open' | 'resolved' | 'stats'>('open')
+  const [view, setView] = useState<'open' | 'resolved' | 'stats' | 'access'>('open')
   const reports = useQuery({
     queryKey: ['reports', view],
-    enabled: view !== 'stats',
+    enabled: view === 'open' || view === 'resolved',
     queryFn: async () => {
       const { data, error } = await supabase
         .from('reports')
@@ -91,18 +107,22 @@ export function ModerationPage() {
       const key = `${r.target_type}:${r.target_id}`
       map.set(key, [...(map.get(key) ?? []), r])
     }
-    return [...map.values()]
-  }, [reports.data])
+    const rank = (group: Report[]) => Math.min(...group.map((r) => severity[r.reason] ?? 9))
+    const list = [...map.values()]
+    // Pending: most serious first; resolved: keep most recent first.
+    return view === 'open' ? list.sort((a, b) => rank(a) - rank(b)) : list
+  }, [reports.data, view])
 
   return (
     <div>
       <PageHeader title="Moderación" subtitle="Reportes y estadísticas de la comunidad" />
-      <div className="mb-4 grid grid-cols-3 gap-1 rounded-2xl bg-surface-muted p-1" role="tablist">
+      <div className="mb-4 grid grid-cols-4 gap-1 rounded-2xl bg-surface-muted p-1" role="tablist">
         {(
           [
             ['open', 'Pendientes'],
             ['resolved', 'Resueltos'],
             ['stats', 'Estadísticas'],
+            ['access', 'Accesos'],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -111,7 +131,7 @@ export function ModerationPage() {
             aria-selected={view === value}
             onClick={() => setView(value)}
             className={cn(
-              'h-10 rounded-xl text-sm font-bold transition-colors',
+              'h-10 truncate rounded-xl px-1 text-xs font-bold transition-colors sm:text-sm',
               view === value ? 'bg-surface text-text shadow-sm' : 'text-muted hover:text-text',
             )}
           >
@@ -123,6 +143,8 @@ export function ModerationPage() {
 
       {view === 'stats' ? (
         <StatsPanel />
+      ) : view === 'access' ? (
+        <AccessPanel />
       ) : reports.isPending ? (
         <div className="space-y-3">
           <CardSkeleton />
@@ -226,7 +248,7 @@ function CaseCard({ reports, resolved }: { reports: Report[]; resolved: boolean 
       <div className="flex flex-wrap items-center gap-1.5">
         <Badge tone="blue">{targetLabels[type]}</Badge>
         {reasons.map((r) => (
-          <Badge key={r} tone={r === 'underage' || r === 'harassment' || r === 'hate' ? 'danger' : 'neutral'}>
+          <Badge key={r} tone={isSerious(r) ? 'danger' : 'neutral'}>
             {reasonLabels[r] ?? r}
           </Badge>
         ))}

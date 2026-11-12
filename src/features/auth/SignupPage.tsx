@@ -1,33 +1,64 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Mail, Lock } from 'lucide-react'
-import { Button, Checkbox, Input } from '@/components/ui'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { Mail, Lock, Ticket, DoorClosed } from 'lucide-react'
+import { Button, Checkbox, EmptyState, Input, PageSpinner } from '@/components/ui'
 import { supabase, siteUrl } from '@/lib/supabase'
 import { friendlyError } from '@/lib/errors'
 import { brand } from '@/lib/brand'
 import { AuthLayout } from './AuthLayout'
+import { InstallCard } from '@/components/InstallApp'
+import { useSignupMode } from './useSignupMode'
 
 /** Bump when the legal texts change; stored with each user's consent. */
 export const CONSENT_VERSION = '2026-11-v1'
 
 export function SignupPage() {
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const { mode, loading: modeLoading } = useSignupMode()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  // Invite links look like /signup?invite=T1-XXXXXXXX
+  const [inviteCode, setInviteCode] = useState((params.get('invite') ?? '').toUpperCase())
   const [adult, setAdult] = useState(false)
   const [terms, setTerms] = useState(false)
   const [health, setHealth] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const canSubmit = adult && terms && health && email && password.length >= 8
+  const needsInvite = mode === 'invite'
+  // With sign-up open the code is optional ("regístrate con el código CARLOS"), but still counted.
+  const [showCode, setShowCode] = useState(Boolean(params.get('invite')))
+  const codeVisible = needsInvite || showCode
+  // "Entrarás en La tribu de Carlos" when the code is linked to a community.
+  const typedCode = codeVisible ? inviteCode.trim() : ''
+  const linkedCommunity = useQuery({
+    queryKey: ['invite-community', typedCode],
+    enabled: typedCode.length >= 3,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data } = await supabase.rpc('invite_code_community', { p_code: typedCode })
+      return (data as string | null) ?? null
+    },
+  })
+  const canSubmit =adult && terms && health && email && password.length >= 8 && (!needsInvite || inviteCode.trim().length >= 3)
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
     setLoading(true)
     setError(null)
-    // The database rejects the sign-up if any consent is missing (handle_new_user trigger).
+    const code = codeVisible ? inviteCode.trim().toUpperCase() : ''
+    if (code) {
+      // Clear message up front; the database enforces it anyway (handle_new_user trigger).
+      const { data: valid } = await supabase.rpc('check_invite_code', { p_code: code })
+      if (!valid) {
+        setLoading(false)
+        return setError(friendlyError('invalid_invite'))
+      }
+    }
+    // The database rejects the sign-up if any consent is missing or the invite is invalid.
     const { error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
@@ -39,6 +70,7 @@ export function SignupPage() {
           privacy_accepted: terms,
           health_data_consent: health,
           consent_version: CONSENT_VERSION,
+          ...(code ? { invite_code: code } : {}),
         },
       },
     })
@@ -47,9 +79,56 @@ export function SignupPage() {
     navigate('/verify-email', { state: { email: email.trim() } })
   }
 
+  if (modeLoading) return <PageSpinner />
+
+  if (mode === 'closed')
+    return (
+      <AuthLayout title="Volvemos enseguida" subtitle="El registro está cerrado de momento.">
+        <EmptyState icon={<DoorClosed size={28} />} title="No se pueden crear cuentas ahora mismo" className="px-0">
+          Estamos haciendo ajustes para recibirte como mereces. Si ya tienes cuenta, puedes entrar con normalidad.
+        </EmptyState>
+        <Button block size="lg" onClick={() => navigate('/login')}>
+          Ya tengo cuenta
+        </Button>
+      </AuthLayout>
+    )
+
   return (
-    <AuthLayout title="Crea tu cuenta" subtitle={`Únete a ${brand.name}. Tardas menos de dos minutos.`}>
+    <AuthLayout
+      title="Crea tu cuenta"
+      subtitle={needsInvite ? `Ahora mismo entramos con invitación. Tardas menos de dos minutos.` : `Únete a ${brand.name}. Tardas menos de dos minutos.`}
+    >
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
+        {!codeVisible && (
+          <button
+            type="button"
+            onClick={() => setShowCode(true)}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-text hover:underline"
+          >
+            <Ticket size={16} /> ¿Tienes un código?
+          </button>
+        )}
+        {codeVisible && (
+          <Input
+            label={needsInvite ? 'Código de invitación' : 'Código (opcional)'}
+            placeholder={needsInvite ? 'T1-XXXXXXXX' : 'Ej. CARLOS'}
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            leading={<Ticket size={18} />}
+            value={inviteCode}
+            onChange={(e) => setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 24))}
+            hint={
+              linkedCommunity.data ? (
+                <span className="font-semibold text-mint-text">✓ Entrarás directamente en {linkedCommunity.data}</span>
+              ) : needsInvite ? (
+                'Te lo ha dado alguien de la comunidad o el equipo.'
+              ) : (
+                'Si alguien te ha recomendado la app con un código, escríbelo aquí.'
+              )
+            }
+          />
+        )}
         <Input
           label="Email"
           type="email"
@@ -113,6 +192,7 @@ export function SignupPage() {
           </Link>
         </p>
       </form>
+      <InstallCard className="mt-6" />
     </AuthLayout>
   )
 }

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
+import './lib/install' // catches the browser's one-time install event before any screen mounts
 import { router } from './app/router'
 import { AuthProvider } from './app/auth'
 import { ThemeProvider } from './app/theme'

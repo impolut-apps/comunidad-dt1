@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { MessageCircle, Users } from 'lucide-react'
+import { MessageCircle, Sparkles, Users } from 'lucide-react'
+import { communityUnread, useCommunities, type Community } from '@/features/communities/api'
+import { CommunityRow } from '@/features/communities/CommunityPage'
 import { Avatar, Button, CardSkeleton, CountDot, EmptyState, ErrorState, PageHeader } from '@/components/ui'
 import { useMe } from '@/app/auth'
 import { cn } from '@/lib/cn'
@@ -8,45 +10,55 @@ import { useGroups, useInbox, shortTime, type GroupItem } from './api'
 import { Conversation } from './Conversation'
 import { GroupIcon, useJoinGroup } from './groups'
 
-type Tab = 'chats' | 'groups'
+type Tab = 'chats' | 'groups' | 'communities'
 
 /** Mobile: list OR conversation. Desktop (lg): list beside the open conversation. */
 export function MessagesPage() {
   const { conversationId } = useParams()
   const [params, setParams] = useSearchParams()
-  const tab: Tab = params.get('tab') === 'groups' ? 'groups' : 'chats'
+  const tabParam = params.get('tab')
+  const tab: Tab = tabParam === 'groups' || tabParam === 'communities' ? tabParam : 'chats'
   const inbox = useInbox()
   const groups = useGroups()
+  const communities = useCommunities()
   const chatsUnread = inbox.data?.reduce((n, c) => n + (c.other ? c.unread_count : 0), 0) ?? 0
   const groupsUnread = groups.data?.reduce((n, g) => n + g.unread_count, 0) ?? 0
+  const communitiesUnread = communities.data?.reduce((n, c) => n + communityUnread(c), 0) ?? 0
 
   return (
-    <div className="lg:-mx-6 lg:grid lg:h-[calc(100dvh-5rem)] lg:grid-cols-[320px_1fr] lg:gap-4">
+    <div className="lg:-mx-6 lg:grid lg:h-[calc(100dvh-5rem)] lg:grid-cols-[340px_1fr] lg:gap-4">
       <div className={cn(conversationId && 'hidden lg:block', 'lg:overflow-y-auto lg:pr-1')}>
-        <PageHeader title="Mensajes" subtitle="Chats privados y grupos de la comunidad" />
-        <div className="mb-4 grid grid-cols-2 gap-1 rounded-2xl bg-surface-muted p-1" role="tablist">
+        <PageHeader title="Mensajes" subtitle="Chats, grupos y comunidades" />
+        <div className="mb-4 grid grid-cols-3 gap-1 rounded-2xl bg-surface-muted p-1" role="tablist">
           {(
             [
               ['chats', 'Chats', chatsUnread],
               ['groups', 'Grupos', groupsUnread],
+              ['communities', 'Comunidades', communitiesUnread],
             ] as const
           ).map(([value, label, unread]) => (
             <button
               key={value}
               role="tab"
               aria-selected={tab === value}
-              onClick={() => setParams(value === 'groups' ? { tab: 'groups' } : {}, { replace: true })}
+              onClick={() => setParams(value === 'chats' ? {} : { tab: value }, { replace: true })}
               className={cn(
-                'flex h-10 items-center justify-center gap-2 rounded-xl text-sm font-bold transition-colors',
+                'flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl px-1 text-[13px] font-bold transition-colors sm:text-sm',
                 tab === value ? 'bg-surface text-text shadow-sm' : 'text-muted hover:text-text',
               )}
             >
-              {label}
+              <span className="truncate">{label}</span>
               <CountDot count={unread} />
             </button>
           ))}
         </div>
-        {tab === 'chats' ? <ChatList activeId={conversationId} /> : <GroupList activeId={conversationId} />}
+        {tab === 'chats' ? (
+          <ChatList activeId={conversationId} />
+        ) : tab === 'groups' ? (
+          <GroupList activeId={conversationId} />
+        ) : (
+          <CommunityList />
+        )}
       </div>
       {conversationId ? (
         <Conversation key={conversationId} conversationId={conversationId} />
@@ -143,6 +155,42 @@ function GroupList({ activeId }: { activeId?: string }) {
             ))}
           </ul>
         </section>
+      )}
+    </div>
+  )
+}
+
+function CommunityList() {
+  const communities = useCommunities()
+  if (communities.isPending) return <CardSkeleton />
+  if (communities.isError) return <ErrorState message="No hemos podido cargar las comunidades." onRetry={() => communities.refetch()} />
+  if (communities.data.length === 0)
+    return (
+      <EmptyState icon={<Sparkles size={28} />} title="Muy pronto">
+        Aquí estarán las comunidades de creadores y asociaciones: sus avisos y una charla con su gente.
+      </EmptyState>
+    )
+  const mine = communities.data.filter((c) => c.joined)
+  const others = communities.data.filter((c) => !c.joined)
+  return (
+    <div className="space-y-5">
+      {[
+        ['Mis comunidades', mine],
+        [mine.length ? 'Descubre más comunidades' : 'Únete a una comunidad', others],
+      ].map(
+        ([title, list]) =>
+          (list as Community[]).length > 0 && (
+            <section key={title as string}>
+              <h2 className="mb-1 px-3 text-xs font-bold uppercase tracking-wide text-muted">{title as string}</h2>
+              <ul className="space-y-1">
+                {(list as Community[]).map((c) => (
+                  <li key={c.id}>
+                    <CommunityRow c={c} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ),
       )}
     </div>
   )

@@ -15,6 +15,8 @@ export interface Profile {
   t1d_since: number | null
   t1d_note: string | null
   is_moderator: boolean
+  /** Appear in Discover and suggestions (members can still open the profile by link). */
+  discoverable?: boolean
   status: 'active' | 'suspended'
   onboarded_at: string | null
   created_at: string

@@ -123,6 +123,49 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
   )
 })
 
+/** On/off setting row: label + description + accessible switch. */
+export function Switch({
+  checked,
+  onChange,
+  label,
+  description,
+  disabled,
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  label: string
+  description?: ReactNode
+  disabled?: boolean
+}) {
+  const id = useId()
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <label htmlFor={id} className="block cursor-pointer text-[15px] font-semibold">
+          {label}
+        </label>
+        {description && <p className="mt-0.5 text-sm text-muted">{description}</p>}
+      </div>
+      <button
+        id={id}
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className={cn(
+          'relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50',
+          checked ? 'bg-primary' : 'bg-border',
+        )}
+      >
+        <span
+          className={cn('absolute left-0 top-0.5 size-6 rounded-full bg-white shadow transition-transform', checked ? 'translate-x-[22px]' : 'translate-x-0.5')}
+        />
+      </button>
+    </div>
+  )
+}
+
 export function Checkbox({
   checked,
   onChange,

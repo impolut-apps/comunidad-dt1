@@ -9,6 +9,7 @@ import { friendlyError } from '@/lib/errors'
 import { countryName } from '@/lib/geo'
 import { ReportDialog } from '@/features/safety/safety'
 import { activitySelect, formatWhen, isFull, isPast, participantCount, type Activity } from './api'
+import { coverFor } from './covers'
 
 interface Participant {
   user_id: string
@@ -125,8 +126,12 @@ export function PlanDetailPage() {
       </button>
 
       <Card className="overflow-hidden">
-        <div className="relative bg-primary px-5 pb-6 pt-5 text-white">
-          <div className="absolute -right-10 -top-16 size-48 rounded-full bg-electric/70 blur-2xl" />
+        <div className="relative overflow-hidden px-5 pb-6 pt-5 text-white" style={coverFor(a.interest?.slug)}>
+          {a.interest && (
+            <span className="pointer-events-none absolute -bottom-6 -right-2 rotate-12 text-[7rem] leading-none opacity-25 select-none" aria-hidden>
+              {a.interest.emoji}
+            </span>
+          )}
           <div className="relative">
             <div className="flex flex-wrap items-center gap-2">
               {a.interest && (

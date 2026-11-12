@@ -54,9 +54,12 @@ export function PlansPage() {
         title="Planes"
         subtitle="Quedadas con gente que te entiende"
         action={
-          <Button icon={<Plus size={18} />} onClick={() => navigate('/plans/new')} className="hidden sm:inline-flex">
-            Crear plan
-          </Button>
+          // Mobile uses the floating button below; wrapped because Button already sets `inline-flex`.
+          <span className="hidden sm:block">
+            <Button icon={<Plus size={18} />} onClick={() => navigate('/plans/new')}>
+              Crear plan
+            </Button>
+          </span>
         }
       />
 

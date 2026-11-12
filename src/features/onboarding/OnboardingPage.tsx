@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Check, Loader2, X } from 'lucide-react'
 import { Button, Input, Logo, Select, Textarea, useToast } from '@/components/ui'
+import { InstallCard } from '@/components/InstallApp'
 import { useAuth } from '@/app/auth'
 import { supabase } from '@/lib/supabase'
 import { friendlyError } from '@/lib/errors'
@@ -228,6 +229,9 @@ export function OnboardingPage() {
           </section>
         )}
       </div>
+
+      {/* Disappears for good once the app is installed (or opened as the app). */}
+      {step === steps.length - 1 && <InstallCard hideWhenInstalled className="mt-6" />}
 
       <div className="sticky bottom-0 mt-8 bg-bg pt-3">
         <Button block size="lg" onClick={next} loading={saving} disabled={touched && !stepValid}>

@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { PeopleSuggestions } from '@/features/feed/PeopleSuggestions'
+import { WeeklyQuestion } from '@/features/feed/WeeklyQuestion'
+import { WelcomeCard } from '@/features/feed/WelcomeCard'
+import { CommunitiesSection, GroupsSection, UpcomingNearby } from './sections'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { MapPin, Search, Share2, Sparkles, Users } from 'lucide-react'
 import { Avatar, Button, CardSkeleton, Chip, EmptyState, ErrorState, Input, PageHeader, Tag, useToast } from '@/components/ui'
@@ -39,6 +43,7 @@ function useDebounced<T>(value: T, ms = 350) {
 export function DiscoverPage() {
   const me = useMe()
   const toast = useToast()
+  const navigate = useNavigate()
   const [scope, setScope] = useState<Scope>('city')
   const [interestFilter, setInterestFilter] = useState<number[]>([])
   const [query, setQuery] = useState('')
@@ -103,11 +108,11 @@ export function DiscoverPage() {
 
   return (
     <div>
-      <PageHeader title="Descubrir" subtitle="Gente como tú, cerca de ti" />
+      <PageHeader title="Descubrir" subtitle="Personas, planes, comunidades y grupos" />
 
       <Input
         type="search"
-        placeholder="Buscar por nombre o @usuario"
+        placeholder="Buscar personas por nombre o @usuario"
         leading={<Search size={18} />}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -115,7 +120,23 @@ export function DiscoverPage() {
       />
 
       {!q && (
-        <div className="mt-4 flex gap-2" role="radiogroup" aria-label="Zona">
+        <div className="mt-5 space-y-7">
+          <WelcomeCard />
+          <WeeklyQuestion onAnswer={(text) => navigate('/home', { state: { prefill: text } })} />
+          <PeopleSuggestions />
+          <UpcomingNearby />
+          <CommunitiesSection />
+          <GroupsSection />
+        </div>
+      )}
+
+      {!q && (
+        <h2 id="todas" className="mb-1 mt-8 text-sm font-bold uppercase tracking-wide text-muted">
+          Todas las personas
+        </h2>
+      )}
+      {!q && (
+        <div className="mt-2 flex gap-2" role="radiogroup" aria-label="Zona">
           {scopes.map((s) => (
             <button
               key={s.value}

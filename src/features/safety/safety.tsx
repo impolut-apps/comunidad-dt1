@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button, Modal, Textarea, useToast } from '@/components/ui'
 import { useMe } from '@/app/auth'
@@ -10,7 +10,10 @@ import { cn } from '@/lib/cn'
 export type ReportTarget = 'user' | 'post' | 'comment' | 'activity' | 'message'
 
 const reasons = [
+  { value: 'self_harm', label: 'Parece estar en peligro o querer hacerse daño' },
   { value: 'harassment', label: 'Acoso o intimidación' },
+  { value: 'illegal_sale', label: 'Venta de medicamentos, insulina o material sanitario' },
+  { value: 'scam', label: 'Estafa, dinero o enlaces sospechosos' },
   { value: 'spam', label: 'Spam o publicidad' },
   { value: 'hate', label: 'Odio o discriminación' },
   { value: 'sexual', label: 'Contenido sexual' },
@@ -87,6 +90,15 @@ export function ReportDialog({
           </button>
         ))}
       </div>
+      {reason === 'self_harm' && (
+        <div className="mt-3 rounded-2xl border border-danger/30 bg-danger-soft p-3 text-sm text-danger" role="note">
+          <strong>Si hay peligro inmediato, llama al 112.</strong> Nosotros lo revisamos con prioridad, pero no somos un
+          servicio de emergencias.{' '}
+          <Link to="/ayuda" className="font-semibold underline underline-offset-2" onClick={onClose}>
+            Más ayuda
+          </Link>
+        </div>
+      )}
       <div className="mt-4">
         <Textarea
           label="Detalles (opcional)"

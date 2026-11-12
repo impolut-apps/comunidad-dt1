@@ -16,13 +16,13 @@ export interface Activity {
   status: 'open' | 'cancelled'
   created_at: string
   organizer: { id: string; username: string; display_name: string; avatar_path: string | null } | null
-  interest: { emoji: string; label_es: string } | null
+  interest: { slug: string; emoji: string; label_es: string } | null
   participants: Array<{ count: number }>
 }
 
 // Organizer and category embedded; participant count via PostgREST aggregate.
 export const activitySelect =
-  '*, organizer:profiles!activities_organizer_id_fkey(id, username, display_name, avatar_path), interest:interests(emoji, label_es), participants:activity_participants(count)'
+  '*, organizer:profiles!activities_organizer_id_fkey(id, username, display_name, avatar_path), interest:interests(slug, emoji, label_es), participants:activity_participants(count)'
 
 export const participantCount = (a: Activity) => a.participants?.[0]?.count ?? 0
 export const isFull = (a: Activity) => a.max_participants != null && participantCount(a) >= a.max_participants

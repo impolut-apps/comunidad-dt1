@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { Clock, MapPin, Users } from 'lucide-react'
 import { Avatar, Badge } from '@/components/ui'
 import { cn } from '@/lib/cn'
+import { coverFor } from './covers'
 import { dateBadge, formatWhen, isFull, isPast, participantCount, type Activity } from './api'
 
 export function ActivityCard({ activity, going }: { activity: Activity; going?: boolean }) {
@@ -18,9 +19,16 @@ export function ActivityCard({ activity, going }: { activity: Activity; going?: 
         (cancelled || past) && 'opacity-70',
       )}
     >
-      <div className="flex w-14 shrink-0 flex-col items-center justify-center rounded-2xl bg-primary-soft py-2 text-primary-soft-text">
-        <span className="text-xl font-extrabold leading-none">{day}</span>
-        <span className="mt-1 text-xs font-bold uppercase">{month}</span>
+      <div
+        className="relative flex w-20 shrink-0 flex-col items-center justify-center overflow-hidden rounded-2xl py-3 text-white shadow-sm"
+        style={coverFor(activity.interest?.slug)}
+      >
+        <span className="text-3xl drop-shadow-sm" aria-hidden>
+          {activity.interest?.emoji ?? '📅'}
+        </span>
+        <span className="mt-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-extrabold uppercase text-midnight">
+          {day} {month}
+        </span>
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">

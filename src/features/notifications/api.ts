@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 
-export type NotificationType = 'connection_request' | 'connection_accepted' | 'activity_joined' | 'post_comment'
+export type NotificationType = 'connection_request' | 'connection_accepted' | 'activity_joined' | 'post_comment' | 'content_hidden'
 
 export interface AppNotification {
   id: string
