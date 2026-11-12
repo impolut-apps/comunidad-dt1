@@ -9,6 +9,8 @@ export interface Community {
   name: string
   description: string | null
   emoji: string | null
+  /** Set by the community's admin (host); in the avatars bucket. */
+  photo_path: string | null
   host_id: string | null
   host_username: string | null
   host_name: string | null

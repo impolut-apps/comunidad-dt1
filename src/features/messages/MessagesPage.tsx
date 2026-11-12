@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { MessageCircle, Sparkles, Users } from 'lucide-react'
+import { Megaphone, MessageCircle, MessagesSquare, Sparkles, Users } from 'lucide-react'
+import { CommunityAvatar } from '@/features/communities/CommunityAvatar'
 import { communityUnread, useCommunities, type Community } from '@/features/communities/api'
 import { CommunityRow } from '@/features/communities/CommunityPage'
 import { Avatar, Button, CardSkeleton, CountDot, EmptyState, ErrorState, PageHeader } from '@/components/ui'
@@ -57,7 +58,7 @@ export function MessagesPage() {
         ) : tab === 'groups' ? (
           <GroupList activeId={conversationId} />
         ) : (
-          <CommunityList />
+          <CommunityList activeId={conversationId} />
         )}
       </div>
       {conversationId ? (
@@ -160,7 +161,7 @@ function GroupList({ activeId }: { activeId?: string }) {
   )
 }
 
-function CommunityList() {
+function CommunityList({ activeId }: { activeId?: string }) {
   const communities = useCommunities()
   if (communities.isPending) return <CardSkeleton />
   if (communities.isError) return <ErrorState message="No hemos podido cargar las comunidades." onRetry={() => communities.refetch()} />
@@ -174,24 +175,85 @@ function CommunityList() {
   const others = communities.data.filter((c) => !c.joined)
   return (
     <div className="space-y-5">
-      {[
-        ['Mis comunidades', mine],
-        [mine.length ? 'Descubre más comunidades' : 'Únete a una comunidad', others],
-      ].map(
-        ([title, list]) =>
-          (list as Community[]).length > 0 && (
-            <section key={title as string}>
-              <h2 className="mb-1 px-3 text-xs font-bold uppercase tracking-wide text-muted">{title as string}</h2>
-              <ul className="space-y-1">
-                {(list as Community[]).map((c) => (
-                  <li key={c.id}>
-                    <CommunityRow c={c} />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ),
+      {mine.length > 0 && (
+        <section>
+          <h2 className="mb-1 px-3 text-xs font-bold uppercase tracking-wide text-muted">Mis comunidades</h2>
+          <ul className="space-y-2">
+            {mine.map((c) => (
+              <li key={c.id}>
+                <JoinedCommunity c={c} activeId={activeId} />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
+      {others.length > 0 && (
+        <section>
+          <h2 className="mb-1 px-3 text-xs font-bold uppercase tracking-wide text-muted">
+            {mine.length ? 'Descubre más comunidades' : 'Únete a una comunidad'}
+          </h2>
+          <ul className="space-y-1">
+            {others.map((c) => (
+              <li key={c.id}>
+                <CommunityRow c={c} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  )
+}
+
+/** A community I'm in, with its two channels listed under it (like a WhatsApp community). */
+function JoinedCommunity({ c, activeId }: { c: Community; activeId?: string }) {
+  const channels = [
+    { id: c.announcements_id, icon: Megaphone, title: 'Avisos', time: c.last_announcement_at, preview: c.last_announcement_body ?? 'Sin avisos todavía', unread: c.unread_announcements },
+    {
+      id: c.chat_id,
+      icon: MessagesSquare,
+      title: 'Charla',
+      time: c.last_chat_at,
+      preview: c.last_chat_body ? `${c.last_chat_sender}: ${c.last_chat_body}` : 'Saluda a la comunidad 👋',
+      unread: c.unread_chat,
+    },
+  ]
+  return (
+    <div className="rounded-2xl border border-border bg-surface">
+      <Link to={`/c/${c.slug}`} className="flex items-center gap-3 rounded-t-2xl p-3 transition-colors hover:bg-surface-muted">
+        <CommunityAvatar c={c} size="md" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-bold">{c.name}</span>
+          <span className="block truncate text-xs text-muted">
+            {c.member_count} {c.member_count === 1 ? 'miembro' : 'miembros'}
+            {c.host_name ? ` · Con ${c.host_name}` : ''}
+          </span>
+        </span>
+      </Link>
+      <ul className="border-t border-border py-1">
+        {channels.map(({ id, icon: Icon, title, time, preview, unread }) => (
+          <li key={id}>
+            <Link
+              to={`/messages/${id}?tab=communities`}
+              className={cn('mx-1 flex items-center gap-3 rounded-xl py-2 pl-4 pr-2 transition-colors', activeId === id ? 'bg-primary-soft' : 'hover:bg-surface-muted')}
+            >
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary-soft-text">
+                <Icon size={16} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-baseline justify-between gap-2">
+                  <span className={cn('text-sm', unread ? 'font-extrabold' : 'font-semibold')}>{title}</span>
+                  {time && <span className="shrink-0 text-xs text-muted">{shortTime(time)}</span>}
+                </span>
+                <span className="flex items-center justify-between gap-2">
+                  <span className={cn('truncate text-xs', unread ? 'font-semibold text-text' : 'text-muted')}>{preview}</span>
+                  <CountDot count={unread} />
+                </span>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

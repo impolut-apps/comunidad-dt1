@@ -9,6 +9,7 @@ import { activitySelect, formatWhen, type Activity } from '@/features/activities
 import { coverFor } from '@/features/activities/covers'
 import { communityCover, useCommunities } from '@/features/communities/api'
 import { CommunityRow } from '@/features/communities/CommunityPage'
+import { CommunityAvatar } from '@/features/communities/CommunityAvatar'
 import { useGroups } from '@/features/messages/api'
 import { GroupIcon, useJoinGroup } from '@/features/messages/groups'
 
@@ -56,8 +57,8 @@ export function CommunitiesSection() {
           {others.map((c) => (
             <li key={c.id} className="snap-start">
               <Link to={`/c/${c.slug}`} className="flex w-56 flex-col overflow-hidden rounded-card border border-border bg-surface shadow-card transition hover:-translate-y-0.5">
-                <span className="flex h-20 items-center justify-center text-4xl" style={communityCover(c.slug)} aria-hidden>
-                  {c.emoji ?? '💙'}
+                <span className="flex h-20 items-center justify-center" style={communityCover(c.slug)} aria-hidden>
+                  <CommunityAvatar c={c} size="lg" className="ring-4 ring-white/30" />
                 </span>
                 <span className="p-3">
                   <span className="block truncate font-bold">{c.name}</span>

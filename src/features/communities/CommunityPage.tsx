@@ -6,6 +6,7 @@ import { useMe } from '@/app/auth'
 import { siteUrl } from '@/lib/supabase'
 import { shortTime } from '@/features/messages/api'
 import { communityCover, useCommunities, useJoinCommunity, useLeaveCommunity, type Community } from './api'
+import { CommunityAvatar, EditableCommunityAvatar } from './CommunityAvatar'
 
 export function CommunityPage() {
   const { slug } = useParams()
@@ -63,9 +64,7 @@ function CommunityView({ c }: { c: Community }) {
       <Card className="overflow-hidden">
         <div className="relative px-5 pb-6 pt-6 text-white" style={communityCover(c.slug)}>
           <div className="flex items-start gap-4">
-            <span className="flex size-16 shrink-0 items-center justify-center rounded-3xl bg-white/20 text-4xl shadow-sm backdrop-blur" aria-hidden>
-              {c.emoji ?? '💙'}
-            </span>
+            <EditableCommunityAvatar c={c} />
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold uppercase tracking-wide text-white/80">Comunidad</p>
               <h1 className="mt-0.5 text-2xl font-extrabold leading-tight tracking-tight">{c.name}</h1>
@@ -82,7 +81,7 @@ function CommunityView({ c }: { c: Community }) {
           {c.host_username && (
             <Link to={`/u/${c.host_username}`} className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/15 py-1 pl-1 pr-3 text-sm font-semibold hover:bg-white/25">
               <Avatar path={c.host_avatar} name={c.host_name ?? ''} size="xs" />
-              Con {c.host_name}
+              Con {c.host_name} · Administrador
             </Link>
           )}
         </div>
@@ -106,7 +105,7 @@ function CommunityView({ c }: { c: Community }) {
       {c.joined ? (
         <Card className="divide-y divide-border">
           <ChannelRow
-            to={`/messages/${c.announcements_id}`}
+            to={`/messages/${c.announcements_id}?tab=communities`}
             icon={<Megaphone size={20} />}
             title="Avisos"
             subtitle={c.last_announcement_body ?? (isHost ? 'Escribe tu primer aviso a la comunidad' : `Aquí publica ${c.host_name ?? 'el equipo'}`)}
@@ -114,7 +113,7 @@ function CommunityView({ c }: { c: Community }) {
             unread={c.unread_announcements}
           />
           <ChannelRow
-            to={`/messages/${c.chat_id}`}
+            to={`/messages/${c.chat_id}?tab=communities`}
             icon={<MessagesSquare size={20} />}
             title="Charla"
             subtitle={c.last_chat_body ? `${c.last_chat_sender}: ${c.last_chat_body}` : 'Habla con el resto de la comunidad'}
@@ -183,9 +182,7 @@ export function CommunityRow({ c }: { c: Community }) {
     : c.description ?? (c.host_name ? `Con ${c.host_name}` : `${c.member_count} miembros`)
   return (
     <Link to={`/c/${c.slug}`} className="flex items-center gap-3 rounded-2xl p-3 transition-colors hover:bg-surface-muted">
-      <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl text-2xl text-white" style={communityCover(c.slug)} aria-hidden>
-        {c.emoji ?? '💙'}
-      </span>
+      <CommunityAvatar c={c} size="md" />
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">
           <span className={unread ? 'truncate font-extrabold' : 'truncate font-semibold'}>{c.name}</span>

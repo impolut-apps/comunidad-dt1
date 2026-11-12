@@ -5,7 +5,8 @@ import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button, Card, CardSkeleton, ErrorState, Input, Modal, Textarea, useToast } from '@/components/ui'
 import { supabase } from '@/lib/supabase'
 import { friendlyError } from '@/lib/errors'
-import { communityCover, useCommunities, type Community } from '@/features/communities/api'
+import { useCommunities, type Community } from '@/features/communities/api'
+import { CommunityAvatar } from '@/features/communities/CommunityAvatar'
 
 /** "La tribu de Carlos" → "la-tribu-de-carlos" */
 function slugify(s: string) {
@@ -29,7 +30,7 @@ export function CommunitiesPanel() {
         <div>
           <h2 className="text-sm font-bold uppercase tracking-wide text-muted">Comunidades de creadores</h2>
           <p className="mt-1 text-sm text-muted">
-            Cada una tiene Avisos (solo publica el anfitrión) y una Charla. Vincúlala a un código para que sus seguidores entren directos.
+            Cada una tiene Avisos (solo publica su administrador, el anfitrión) y una Charla. Vincúlala a un código para que sus seguidores entren directos.
           </p>
         </div>
         <Button size="sm" icon={<Plus size={16} />} onClick={() => setEditing('new')}>
@@ -46,9 +47,7 @@ export function CommunitiesPanel() {
         <ul className="mt-3 divide-y divide-border">
           {communities.data.map((c) => (
             <li key={c.id} className="flex items-center gap-3 py-2.5">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl text-xl" style={communityCover(c.slug)} aria-hidden>
-                {c.emoji ?? '💙'}
-              </span>
+              <CommunityAvatar c={c} size="sm" />
               <Link to={`/c/${c.slug}`} className="min-w-0 flex-1">
                 <p className="truncate font-bold">{c.name}</p>
                 <p className="truncate text-xs text-muted">
@@ -176,12 +175,12 @@ function CommunityEditor({ community, onClose }: { community: Community | null; 
           hint="Letras, números y guiones. Si lo cambias, el enlace antiguo deja de funcionar."
         />
         <Input
-          label="Anfitrión (usuario)"
+          label="Administrador (usuario)"
           placeholder="@carlos"
           leading={<span className="text-sm">@</span>}
           value={host}
           onChange={(e) => setHost(e.target.value.replace(/^@/, ''))}
-          hint="Tiene que tener cuenta en la app. Es quien publica en Avisos."
+          hint="Tiene que tener cuenta en la app. Será el administrador: el único que publica en Avisos."
         />
         <Textarea label="Descripción" rows={3} maxLength={300} showCount value={description} onChange={(e) => setDescription(e.target.value)} />
       </div>

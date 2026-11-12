@@ -640,14 +640,16 @@ await test('only moderators create communities; the host is inside both channels
   const none = await as(U, 'select * from public.list_communities()')
   assert(none.length === 0, 'non-member saw communities')
 })
-await test('only the host and moderators post announcements; everyone talks in the chat', async () => {
+await test('only the host (the community admin) posts announcements; everyone talks in the chat', async () => {
   await db.query(`update public.messages set created_at = created_at - interval '1 day'`) // clear the anti-spam window
   await as(A, 'select public.join_community($1)', [comm.id])
   await as(B, `insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Bienvenidos a mi comunidad')`, [comm.announcements_id, B])
   await rejects(as(A, `insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'yo también')`, [comm.announcements_id, A]), 'row-level security')
   await as(A, `insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Hola a todos')`, [comm.chat_id, A])
   await as(M, 'select public.join_community($1)', [comm.id])
-  await as(M, `insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Aviso del equipo')`, [comm.announcements_id, M])
+  // Not even the team writes in someone else's announcements.
+  await rejects(as(M, `insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Aviso del equipo')`, [comm.announcements_id, M]), 'row-level security')
+  await as(B, `insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Aviso del equipo')`, [comm.announcements_id, B])
   const [c] = await as(A, `select * from public.list_communities() where id = $1`, [comm.id])
   assert(c.joined && Number(c.member_count) === 3 && c.last_announcement_body === 'Aviso del equipo', JSON.stringify(c))
   // Outsiders see the latest announcement (a broadcast) but not the chat.
@@ -657,6 +659,16 @@ await test('only the host and moderators post announcements; everyone talks in t
   assert(o && !o.joined && o.last_announcement_body === 'Aviso del equipo' && o.last_chat_body === null, JSON.stringify(o))
   const chat = await as(D, 'select * from public.messages where conversation_id = $1', [comm.chat_id])
   assert(chat.length === 0, 'outsider read the chat')
+})
+await test('the community admin sets the photo (in their own avatars folder); members cannot', async () => {
+  const good = `${B}/community-${comm.id}.webp`
+  await rejects(as(A, 'select public.set_community_photo($1, $2)', [comm.id, `${A}/community-${comm.id}.webp`]), 'not_allowed')
+  await rejects(as(B, 'select public.set_community_photo($1, $2)', [comm.id, `${A}/community-${comm.id}.webp`]), 'invalid_action')
+  await rejects(as(B, 'select public.set_community_photo($1, $2)', [comm.id, `${B}/../evil.webp`]), 'invalid_action')
+  await as(B, 'select public.set_community_photo($1, $2)', [comm.id, good])
+  const [c] = await as(A, 'select photo_path from public.list_communities() where id = $1', [comm.id])
+  assert(c.photo_path === good, JSON.stringify(c))
+  await as(B, 'select public.set_community_photo($1, null)', [comm.id])
 })
 await test('members leave as a unit; the host cannot leave their own community', async () => {
   await as(A, 'select public.leave_community($1)', [comm.id])

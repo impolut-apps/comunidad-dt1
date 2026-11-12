@@ -10,7 +10,8 @@ import { cn } from '@/lib/cn'
 import { ReportDialog } from '@/features/safety/safety'
 import { clock, dayLabel, useConversationInfo, useGroups, useInbox, type Message } from './api'
 import { GroupIcon, useJoinGroup } from './groups'
-import { communityCover, useCommunities, useJoinCommunity } from '@/features/communities/api'
+import { useCommunities, useJoinCommunity } from '@/features/communities/api'
+import { CommunityAvatar } from '@/features/communities/CommunityAvatar'
 import { ChatComposer, messageSelect } from './ChatComposer'
 import { MessageBody, type Receipt } from './MessageBody'
 
@@ -34,8 +35,8 @@ export function Conversation({ conversationId }: { conversationId: string }) {
   const join = useJoinGroup(conversationId)
   const joinCommunity = useJoinCommunity()
   const isAnnouncements = info.data?.channel === 'announcements'
-  // Announcements: only the host and the team write (the database enforces it too).
-  const canWrite = !isAnnouncements || community?.host_id === me.id || Boolean(me.is_moderator)
+  // Announcements: only the community's admin (its host) writes — the database enforces it too.
+  const canWrite = !isAnnouncements || community?.host_id === me.id
 
   const [reportId, setReportId] = useState<string | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
@@ -177,9 +178,7 @@ export function Conversation({ conversationId }: { conversationId: string }) {
         </button>
         {community ? (
           <Link to={`/c/${community.slug}`} className="flex min-w-0 flex-1 items-center gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl text-xl" style={communityCover(community.slug)} aria-hidden>
-              {community.emoji ?? '💙'}
-            </span>
+            <CommunityAvatar c={community} size="sm" />
             <span className="min-w-0">
               <span className="block truncate font-bold">{community.name}</span>
               <span className="block truncate text-xs text-muted">
@@ -219,7 +218,7 @@ export function Conversation({ conversationId }: { conversationId: string }) {
         {community && (
           <p className="mx-auto mb-4 max-w-md rounded-2xl bg-primary-soft/60 px-4 py-3 text-center text-sm text-primary-soft-text">
             {isAnnouncements
-              ? `Aquí publica ${community.host_name ?? 'el equipo'}: novedades, planes y mensajes para toda la comunidad.`
+              ? `Aquí solo publica ${community.host_name ?? 'el administrador'}: novedades, planes y mensajes para toda la comunidad.`
               : (community.description ?? 'La charla de la comunidad: preséntate y conoce al resto.')}
             <span className="mt-1 block text-xs opacity-80">
               Comparte experiencias, no consejos médicos. Sé amable 💙 ·{' '}
@@ -358,9 +357,9 @@ export function Conversation({ conversationId }: { conversationId: string }) {
         <ChatComposer conversationId={conversationId} isGroup={isGroup} onSent={onSent} />
       ) : (
         <p className="border-t border-border bg-surface px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] text-center text-sm text-muted">
-          📣 Solo {community?.host_name ?? 'el anfitrión'} y el equipo publican avisos.{' '}
+          📣 Solo {community?.host_name ?? 'el administrador'}, administrador de la comunidad, publica avisos.{' '}
           {community && (
-            <Link to={`/messages/${community.chat_id}`} className="font-semibold text-primary-text">
+            <Link to={`/messages/${community.chat_id}?tab=communities`} className="font-semibold text-primary-text">
               Ir a la charla
             </Link>
           )}
